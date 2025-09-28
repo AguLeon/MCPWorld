@@ -219,11 +219,11 @@ async def sampling_loop(
         if tool_version == "computer_only":
             system = BetaTextBlockParam(
                 type="text",
-                text=f"{
+                text=f"""{
                     SYSTEM_PROMPT_NO_BASH_API_ONLY
-                    if exec_mode == 'api'
+                    if exec_mode == "api"
                     else SYSTEM_PROMPT_NO_BASH
-                }{' ' + system_prompt_suffix if system_prompt_suffix else ''}",
+                }{" " + system_prompt_suffix if system_prompt_suffix else ""}""",
             )
         else:
             system = BetaTextBlockParam(
@@ -488,4 +488,3 @@ def _maybe_prepend_system_tool_result(result: ToolResult, result_text: str):
     if result.system:
         result_text = f"<system>{result.system}</system>\n{result_text}"
     return result_text
-
