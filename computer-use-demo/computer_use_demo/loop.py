@@ -18,7 +18,7 @@ from anthropic import (
     APIError,
     APIResponseValidationError,
     APIStatusError,
-    DefaultHttpxClient
+    DefaultHttpxClient,
 )
 from anthropic.types.beta import (
     BetaCacheControlEphemeralParam,
@@ -57,6 +57,7 @@ class APIProvider(StrEnum):
     VERTEX = "vertex"
 
 
+DATE_FMT = datetime.today().strftime("%A, %B %d, %Y")
 # This system prompt is optimized for the Docker environment in this repository and
 # specific tool combinations enabled.
 # We encourage modifying this system prompt to ensure the model has context for the
@@ -70,7 +71,7 @@ SYSTEM_PROMPT = f"""<SYSTEM_CAPABILITY>
 * When using your bash tool with commands that are expected to output very large quantities of text, redirect into a tmp file and use str_replace_editor or `grep -n -B <lines before> -A <lines after> <query> <filename>` to confirm output.
 * When viewing a page it can be helpful to zoom out so that you can see everything on the page.  Either that, or make sure you scroll down to see everything before deciding something isn't available.
 * When using your computer function calls, they take a while to run and send back to you.  Where possible/feasible, try to chain multiple of these calls all into one function calls request.
-* The current date is {datetime.today().strftime('%A, %B %-d, %Y')}.
+* The current date is {DATE_FMT}.
 </SYSTEM_CAPABILITY>
 
 <IMPORTANT>
@@ -83,7 +84,7 @@ SYSTEM_PROMPT_API_ONLY = f"""<SYSTEM_CAPABILITY>
 * You can feel free to install Ubuntu applications with your bash tool. Use curl instead of wget.
 * When using your bash tool with commands that are expected to output very large quantities of text, redirect into a tmp file and use str_replace_editor or `grep -n -B <lines before> -A <lines after> <query> <filename>` to confirm output.
 * When using your computer function calls, they take a while to run and send back to you.  Where possible/feasible, try to chain multiple of these calls all into one function calls request.
-* The current date is {datetime.today().strftime('%A, %B %-d, %Y')}.
+* The current date is {DATE_FMT}.
 </SYSTEM_CAPABILITY>
 
 <IMPORTANT>
@@ -95,7 +96,7 @@ SYSTEM_PROMPT_NO_BASH = f"""<SYSTEM_CAPABILITY>
 * To open firefox, please just click on the firefox icon.  Note, firefox-esr is what is installed on your system.
 * When viewing a page it can be helpful to zoom out so that you can see everything on the page.  Either that, or make sure you scroll down to see everything before deciding something isn't available.
 * When using your computer function calls, they take a while to run and send back to you.  Where possible/feasible, try to chain multiple of these calls all into one function calls request.
-* The current date is {datetime.today().strftime('%A, %B %-d, %Y')}.
+* The current date is {DATE_FMT}.
 </SYSTEM_CAPABILITY>
 
 <IMPORTANT>
@@ -105,7 +106,7 @@ SYSTEM_PROMPT_NO_BASH = f"""<SYSTEM_CAPABILITY>
 SYSTEM_PROMPT_NO_BASH_API_ONLY = f"""<SYSTEM_CAPABILITY>
 * You are utilising an Ubuntu virtual machine using {platform.machine()} architecture with internet access.
 * When using your computer function calls, they take a while to run and send back to you.  Where possible/feasible, try to chain multiple of these calls all into one function calls request.
-* The current date is {datetime.today().strftime('%A, %B %-d, %Y')}.
+* The current date is {DATE_FMT}.
 </SYSTEM_CAPABILITY>
 """
 
@@ -115,7 +116,7 @@ def _record_tool_call_start(
     evaluator: Optional[BaseEvaluator],
     task_id: Optional[str],
     tool_name: str,
-    tool_input: Dict[str, Any]
+    tool_input: Dict[str, Any],
 ):
     start_time = time.time()
     """Records the TOOL_CALL_START event if evaluator is enabled."""
@@ -127,10 +128,11 @@ def _record_tool_call_start(
                     "timestamp": start_time,
                     "tool_name": tool_name,
                     "args": tool_input,
-                }
+                },
             )
         except Exception as rec_e:
             print(f"[Evaluator Error] Failed to record TOOL_CALL_START: {rec_e}")
+
 
 def _record_tool_call_end(
     evaluator: Optional[BaseEvaluator],
@@ -165,12 +167,11 @@ def _record_tool_call_end(
             else:
                 event_data["result"] = tool_result.error
 
-            evaluator.record_event(
-                AgentEvent.TOOL_CALL_END,
-                event_data
-            )
+            evaluator.record_event(AgentEvent.TOOL_CALL_END, event_data)
         except Exception as rec_e:
             print(f"[Evaluator Error] Failed to record TOOL_CALL_END: {rec_e}")
+
+
 # --- End Evaluator Helper Functions ---
 
 
@@ -218,13 +219,19 @@ async def sampling_loop(
         if tool_version == "computer_only":
             system = BetaTextBlockParam(
                 type="text",
-                text=f"{SYSTEM_PROMPT_NO_BASH_API_ONLY if exec_mode == 'api' else SYSTEM_PROMPT_NO_BASH}{' ' + system_prompt_suffix if system_prompt_suffix else ''}",
+                text=f"{
+                    SYSTEM_PROMPT_NO_BASH_API_ONLY
+                    if exec_mode == 'api'
+                    else SYSTEM_PROMPT_NO_BASH
+                }{' ' + system_prompt_suffix if system_prompt_suffix else ''}",
             )
         else:
             system = BetaTextBlockParam(
                 type="text",
-                text=f"{SYSTEM_PROMPT_API_ONLY if exec_mode == 'api' else SYSTEM_PROMPT}{' ' + system_prompt_suffix if system_prompt_suffix else ''}",
-            )        
+                text=f"{
+                    SYSTEM_PROMPT_API_ONLY if exec_mode == 'api' else SYSTEM_PROMPT
+                }{' ' + system_prompt_suffix if system_prompt_suffix else ''}",
+            )
 
         while not is_timeout():
             enable_prompt_caching = False
@@ -233,7 +240,11 @@ async def sampling_loop(
                 betas.append("token-efficient-tools-2025-02-19")
             image_truncation_threshold = only_n_most_recent_images or 0
             if provider == APIProvider.ANTHROPIC:
-                client = Anthropic(api_key=api_key, max_retries=4, http_client=httpx.Client(proxy="http://10.161.28.28:10809"))
+                client = Anthropic(
+                    api_key=api_key,
+                    max_retries=4,
+                    http_client=httpx.Client(proxy="http://10.161.28.28:10809"),
+                )
                 enable_prompt_caching = True
             elif provider == APIProvider.VERTEX:
                 client = AnthropicVertex()
@@ -477,3 +488,4 @@ def _maybe_prepend_system_tool_result(result: ToolResult, result_text: str):
     if result.system:
         result_text = f"<system>{result.system}</system>\n{result_text}"
     return result_text
+
