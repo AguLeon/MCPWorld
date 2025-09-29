@@ -45,6 +45,11 @@ cd MCPWorld
 git submodule update --init PC-Canary
 ```
 
+We also want to clone downstream linked repositories to the open-source apps we use (FreeTube, VS Code, Telegram, etc):
+```bash
+git submodule update --init --recursive
+```
+
 Then open the folder in VS Code and select **Reopen in Container**, or manually build the image according to the Dockerfile provided by PC-Canary.
 
 ---
