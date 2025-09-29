@@ -52,6 +52,21 @@ git submodule update --init --recursive
 
 Then open the folder in VS Code and select **Reopen in Container**, or manually build the image according to the Dockerfile provided by PC-Canary.
 
+```bash
+docker build -f PC-Canary/.devcontainer/Dockerfile -t mcpworld:pc-canary .
+```
+
+Then:
+```bash
+export ANTHROPIC_API_KEY=<your_key>
+docker rm -f mcpworld 2>/dev/null
+docker run --name mcpworld \
+  -e ANTHROPIC_API_KEY \
+  -p 6080:6080 -p 8501:8501 -p 8081:8081 -p 5904:5904 \
+  -v /home/cc/MCPWorld:/workspace \
+  -it mcpworld:pc-canary /bin/bash
+```
+
 ---
 
 ## 🚩 Quickstart
