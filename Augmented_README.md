@@ -1,4 +1,5 @@
 # MCPWorld: A Multi-Modal Test Platform for Computer-Using Agents (CUA)
+
 ![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Docker](https://img.shields.io/badge/Docker-Supported-green.svg)
 
 MCPWorld is an open-source benchmarking framework designed for evaluating **Computer-Using Agents (CUAs)**. It supports agents that interact with software applications via **GUI**, **API (Model Context Protocol – MCP)**, or **Hybrid** methods.
@@ -7,32 +8,44 @@ MCPWorld is an open-source benchmarking framework designed for evaluating **Comp
 
 ## 🚀 Key Features
 
-- **Comprehensive Task Suite** – ~170 tasks across 10+ open-source applications (VSCode, OBS, Zotero, etc.).
-- **GUI, API, and Hybrid Interaction** – Integrated MCP support enables robust mixed-mode control, letting agents fall back to GUI when APIs are unavailable.
-- **White-Box Evaluation** – Built-in evaluators inspect internal app signals or outputs for precise, reproducible task verification.
-- **Cross-Platform via Docker** – Containerized environments ensure consistent setups on Linux, macOS, and Windows.
-- **Extensible Framework** – Easily add new tasks, applications, or custom agents via clear folder structure and interfaces.
+* **Comprehensive Task Suite**
+
+  * \~170 tasks across 10+ open-source applications (VSCode, OBS, Zotero, etc.).
+
+* **GUI, API, and Hybrid Interaction**
+
+  * Integrated MCP support enables robust mixed-mode control, letting agents fall back to GUI when APIs are unavailable.
+
+* **White-Box Evaluation**
+
+  * Built-in evaluators inspect internal app signals or outputs for precise, reproducible task verification.
+
+* **Cross-Platform via Docker**
+
+  * Containerized environments ensure consistent setups on Linux, macOS, and Windows.
+
+* **Extensible Framework**
+
+  * Easily add new tasks, applications, or custom agents via clear folder structure and interfaces.
 
 ---
 
 ## 📦 Installation
 
 ### Prerequisites
-- Docker
-- (Optional) VS Code + DevContainers extension
+
+* Docker
+* (Optional) VS Code + DevContainers extension
 
 ### Quick Setup
+
 ```bash
 git clone https://github.com/SAAgent/MCPWorld.git
 cd MCPWorld
 git submodule update --init PC-Canary
 ```
 
-Then open the folder in VS Code and select **Reopen in Container**, or manually build the image according to the Dockerfile provided by PC-Canary:
-
-```bash
-docker build -f PC-Canary/.devcontainer/Dockerfile -t mcpworld:pc-canary .
-```
+Then open the folder in VS Code and select **Reopen in Container**, or manually build the image according to the Dockerfile provided by PC-Canary.
 
 ---
 
@@ -40,144 +53,240 @@ docker build -f PC-Canary/.devcontainer/Dockerfile -t mcpworld:pc-canary .
 
 ### 🚀 Running the Interactive Agent Demo with Evaluation
 
-These instructions assume you are running commands inside the container.
+These instructions assume you are running commands inside the DevContainer.
 
-#### Install Dependencies
-```bash
-pip install -r computer-use-demo/computer_use_demo/requirements.txt
-```
-> ⚠ If network fails due to a stale proxy in the image, unset it first:  
-> `unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY`
+1.  **Install Dependencies:**
 
-#### Start Required Services (each in its own terminal)
-- **VNC Server**
-```bash
-vncserver -xstartup ~/.vnc/xstartup -geometry 1024x768 :4
-```
-Accessible on port 5904 (raw VNC).
+    First, ensure all Python dependencies for the agent demo are installed:
+    ```bash
+    pip install -r computer-use-demo/computer_use_demo/requirements.txt
+    ```
 
-- **noVNC Proxy**
-```bash
-/opt/noVNC/utils/novnc_proxy   --vnc localhost:5904   --listen 0.0.0.0:6080   --web /opt/noVNC > /tmp/novnc.log 2>&1 &
-```
-Accessible at: `http://<VM-IP>:6080/vnc.html`
+2.  **Start Required Services:**
 
-- **Main HTTP Server**
-```bash
-python computer-use-demo/image/http_server.py > /tmp/http_server.log 2>&1 &
-```
-Accessible at: `http://<VM-IP>:8081`
+    You'll need to start several services. It's recommended to run each in a separate terminal session within the container, or run them in the background.
 
-- **Streamlit Agent & Evaluator UI**
-```bash
-cd computer-use-demo
-STREAMLIT_SERVER_PORT=8501 python -m streamlit run computer_use_demo/streamlit.py > /tmp/streamlit.log 2>&1 &
-```
-Accessible at: `http://<VM-IP>:8501`
+    *   **VNC Server:** This provides the graphical desktop environment for the agent. The `xstartup` script configured in the Dockerfile will prepare an XFCE session.
+        ```bash
+        vncserver -xstartup ~/.vnc/xstartup -geometry 1024x768 :4
+        ```
+        This typically makes VNC available on port `5904`.
 
-#### Accessing the Demo
-- Unified Interface: `http://<VM-IP>:8081`
-- VNC Desktop (via browser): `http://<VM-IP>:6080`
-- Agent & Evaluator UI (Streamlit): `http://<VM-IP>:8501`
+    *   **noVNC Proxy:** This allows you to access the VNC session via a web browser.
+        ```bash
+        /opt/noVNC/utils/novnc_proxy \
+            --vnc localhost:5904 \
+            --listen 0.0.0.0:6080 \
+            --web /opt/noVNC > /tmp/novnc.log 2>&1 &
+        ```
+    *   **Main Page HTTP Server:** This server provides a unified entry point to access both VNC and the Streamlit UI.
+        ```bash
+        python computer-use-demo/image/http_server.py > /tmp/http_server.log 2>&1 &
+        ```
 
----
+    *   **Agent Demo & Evaluator UI (Streamlit App):** This application serves as the control panel for running tasks with the agent and viewing evaluation results.
+        ```bash
+        cd computer-use-demo
+        STREAMLIT_SERVER_PORT=8501 python -m streamlit run computer_use_demo/streamlit.py > /tmp/streamlit.log 2>&1 &
+        ```
+
+3.  **Accessing the Demo:**
+
+    *   **Unified Interface:** Access the main entry page via your web browser at `http://localhost:8081`. This page should provide links to the VNC desktop and the Agent/Evaluator Streamlit UI.
+    *   **VNC Desktop (Direct):** Access the agent's desktop environment directly via `http://localhost:6080`.
+    *   **Agent & Evaluator UI (Direct):** Open `http://localhost:8501` directly to interact with the Streamlit application.
+
+    <!-- (Ensure ports `8081`, `6080`, and `8501` are forwarded if you're accessing from outside the Docker host). -->
+
+    Through the Streamlit UI (or by direct interaction if using the headless mode below), you can assign tasks to the agent. The agent will then interact with applications within the VNC desktop environment. The Evaluator will monitor and report on the agent's performance.
+
+<!-- **Recommendations for VNC Environment:**
+*   For a smoother experience, consider adding frequently used applications (e.g., Firefox) to the taskbar within the XFCE desktop environment.
+*   Disable automatic screen locking in the XFCE power manager settings. -->
 
 ### 🧪 Headless Agent & Evaluator Execution (CLI-Only)
 
-Run without UI:
+For scenarios where a UI is not needed or desired (e.g., automated batch testing), you can run the agent and evaluator directly from the command line using the `run_pure_computer_use_with_eval.py` script. This script handles the interaction loop and evaluation process without launching the Streamlit web interface.
+
+**Prerequisites:**
+*   Ensure the VNC server is running as described in the "Interactive Agent Demo" section if your tasks require GUI interaction. The VNC server provides the environment for the agent to operate in.
+*   Ensure you have set your Anthropic API key, either via the `--api_key` argument or the `ANTHROPIC_API_KEY` environment variable.
+
+**Example Command:**
 
 ```bash
-python computer-use-demo/run_pure_computer_use_with_eval.py   --api_key "$ANTHROPIC_API_KEY"   --model claude-3-7-sonnet-20250219   --task_id telegram/task01_search   --log_dir logs_computer_use_eval   --exec_mode mixed
+python computer-use-demo/run_pure_computer_use_with_eval.py \
+  --api_key <YOUR_ANTHROPIC_API_KEY> \
+  --model claude-3-7-sonnet-20250219 \
+  --task_id telegram/task01_search \
+  --log_dir logs_computer_use_eval \
+  --exec_mode mixed
 ```
 
----
+<!-- **Key Parameters for `run_pure_computer_use_with_eval.py`:**
+*   `--api_key`: Your Anthropic API key.
+*   `--model`: The specific Anthropic model to use (e.g., `claude-3-opus-20240229`, `claude-3-sonnet-20240229`).
+*   `--task_id`: The ID of the task from PC-Canary (e.g., `libreoffice/writer_create_document`, `gimp/crop_image`). This is a **required** argument.
+*   `--log_dir`: Directory where evaluation logs and results will be saved.
+*   `--max_turns`: Maximum number of conversational turns between the user (or initial instruction) and the agent.
+*   `--timeout`: Overall timeout for the task execution in seconds.
+*   `--exec_mode`: Agent's interaction mode (`mixed`, `gui`, or `api`).
+*   `--app_path` (Optional): Path to a specific application if the task requires it and it's not discoverable by default.
+*   `--tool_version` (Optional): Specify a particular version of tools if needed (defaults to `computer_use_20250124`).
+*   `--system_prompt_suffix` (Optional): Additional text to append to the system prompt. -->
 
-## ⚡ Practical Setup Notes & Troubleshooting
+This script will output agent interactions and evaluation events directly to the console. Final results and detailed logs will be saved in the directory specified by `--log_dir`.
 
-During real deployments, several issues can arise. Below are the solutions we applied:
+<!-- Run the full benchmark:
 
-### Python Environment
-- Prefer a venv under home to avoid permission issues:
-  ```bash
-  python3 -m venv ~/venv
-  source ~/venv/bin/activate
-  ```
-- Proxy environment variables baked into the Docker image often break installs. Fix with:
-  ```bash
-  unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY
-  ```
-
-### Anthropic / MCP SDK Compatibility
-- New versions renamed **beta types**. Fixes include:
-  - Add `is_timeout=False` when calling `sampling_loop(...)`.
-  - Replace `BetaContentBlockParam` → `ContentBlockParam`, `BetaToolUnionParam` → `ToolUnionParam`.
-- If import errors persist, shim imports:
-  ```python
-  try:
-      from anthropic.types.beta import BetaToolUnionParam
-  except ImportError:
-      from anthropic.types.tool_types import ToolUnionParam as BetaToolUnionParam
-  ```
-
-### Dependencies
-- **Streamlit missing**: `pip install streamlit`
-- **mcp not found**: `pip install mcp`
-- **frida not found**: `pip install frida`
-
-### uv Dependency
-- Some tasks expect `uv`. Install inside container:
-  ```bash
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  export PATH="$HOME/.local/bin:$PATH"
-  ```
-
-### API Keys
-- Always use: `--api_key "$ANTHROPIC_API_KEY"`
-- For Telegram tasks, also export:
-  ```bash
-  export TELEGRAM_API_ID=<your_id>
-  export TELEGRAM_API_HASH=<your_hash>
-  ```
-
-### Applications
-- **Third-party apps are not bundled**. You must install them in the container and set paths:
-  - Example for FreeTube:
-    ```bash
-    sudo apt-get update && sudo apt-get install -y libfuse2
-    mkdir -p /opt/apps/freetube && cd /opt/apps/freetube
-    curl -L -o FreeTube.AppImage <FREETUBE_URL>
-    chmod +x FreeTube.AppImage
-    export FREETUBE_APP=/opt/apps/freetube/FreeTube.AppImage
-    ```
-
-### Ports
-- `6080`: browser VNC (noVNC)
-- `5904`: raw VNC (native client)
-- `8081`: landing HTTP page
-- `8501`: Streamlit
-
-### Common Errors & Fixes
-| Problem | Symptom | Fix |
-|---------|---------|-----|
-| Proxy errors | pip timeouts, 10.29.46.139 | `unset http_proxy https_proxy` |
-| Anthropic import errors | Missing Beta types | Shim imports / patch code |
-| frida missing | `ModuleNotFoundError: frida` | `pip install frida` |
-| uv missing | `[Errno 2] No such file or directory: 'uv'` | Install uv and add PATH |
-| pid None | `'NoneType'.pid` error | Install app and export path (e.g., FreeTube) |
-| Telegram crash | `int() argument must be... NoneType` | Export Telegram API ID and hash |
-| Streamlit errors | mismatched SDKs | Patch beta imports, add is_timeout param |
+```bash
+python scripts/run_benchmark.py \
+  --agent gpt-4 \
+  --mode hybrid \
+  --output results/gpt4_hybrid.json
+``` -->
 
 ---
 
 ## 📚 Documentation
 
-- **Tasks**: See `PC-Canary/tests/tasks/` for JSON/JS/Python configs.
-- **Agents**: Reference implementations in `computer-use-demo/`.
-- **Extension**: Add new apps/tasks/agents as described in docs.
-- **Evaluation**: White-box evaluators guarantee objective metrics.
+* **Tasks**: See `PC-Canary/tests/tasks/` for JSON/JS/Python configs.
+* **Agents**: Reference implementations in `computer-use-demo/`.
+* **Extension**: Add new apps/tasks/agents as described in docs (Update in progress).
+* **Evaluation**: White-box evaluators guarantee objective metrics.
 
 ---
+
+<!-- ## 📖 Citation
+
+```bibtex
+@inproceedings{MCPWorld2025,
+  title     = {MCPWorld: A Multi-Modal Test Platform for Computer-Using Agents},
+  author    = {YourName and Author1 and Author2},
+  booktitle = {NeurIPS 2025},
+  year      = {2025}
+}
+``` -->
+
+<!-- --- -->
 
 ## 📝 License
 
 Released under the MIT License.
+
+---
+
+# Troubleshooting & Midsteps
+
+This section collects the troubleshooting steps and commands we used while getting the repository running. Each command is annotated with **where it should be executed**.
+
+
+## Environment Setup
+
+- **Activate virtual environment (inside container, repo root):**
+
+```bash
+source venv/bin/activate
+```
+
+- **If using Conda base + venv (inside container):**
+
+```bash
+(venv) (base) agent@container:/workspace$ 
+```
+
+
+## Dependency Installation
+
+- **Install requirements (from repo root inside container):**
+
+```bash
+pip install -r computer-use-demo/requirements.txt
+```
+
+- **Reinstalling specific versions of Anthropics/mcp:**
+
+```bash
+pip uninstall -y anthropic mcp
+pip install --upgrade anthropic mcp
+```
+
+- **Check versions (inside container):**
+
+```bash
+python - <<'PY'
+import anthropic, mcp
+print('anthropic:', getattr(anthropic, '__version__','?'))
+print('mcp:', getattr(mcp, '__version__','?'))
+PY
+```
+
+
+## Running noVNC
+
+- **Start noVNC server (inside container):**
+
+```bash
+/usr/share/novnc/utils/novnc_proxy --vnc localhost:5904
+```
+
+- You will see logs like:
+
+```
+WebSocket server settings:
+  - Listen on 0.0.0.0:6080
+  - proxying from 0.0.0.0:6080 to localhost:5904
+```
+
+
+## Streamlit Debugging
+
+- **Launch Streamlit manually (inside repo root in container):**
+
+```bash
+STREAMLIT_SERVER_PORT=8501 python -m streamlit run computer_use_demo/streamlit.py > /tmp/streamlit.log 2>&1 &
+```
+
+- **Follow logs (inside container):**
+
+```bash
+tail -f /tmp/streamlit.log
+```
+
+
+## Common Errors & Fixes
+
+- **ModuleNotFoundError (e.g., `mcp`, `frida`):**
+  → Ensure requirements are installed with `pip install -r ...` inside the container.
+
+- **ImportError with anthropic beta types:**
+  → Fixed by upgrading to latest `anthropic` and `mcp` instead of pinning old versions.
+
+- **Error: `[Errno 2] No such file or directory: 'uv'`:**
+  → Install uv inside container:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+- **TypeError: `int() argument must be a string, not NoneType` (Telegram API ID/Hash missing):**
+  → Export credentials before running:
+
+```bash
+export TELEGRAM_API_ID=xxxx
+export TELEGRAM_API_HASH=yyyy
+```
+
+- **Task missing `config.json`:**
+  → Ensure you run with correct task IDs. Example working ones:
+
+```bash
+python computer-use-demo/run_pure_computer_use_with_eval.py \
+  --api_key $ANTHROPIC_KEY \
+  --model claude-3-7-sonnet-20250219 \
+  --task_id FreeTube/task01_search \
+  --log_dir logs_computer_use_eval \
+  --exec_mode mixed
+```
+
