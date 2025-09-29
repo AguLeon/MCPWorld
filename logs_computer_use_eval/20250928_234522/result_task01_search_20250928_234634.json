@@ -1,0 +1,164 @@
+{
+  "metadata": {
+    "session_start_iso": "2025-09-28T23:45:22+0000",
+    "session_start_unix": 1759103122.3974774,
+    "task_config_at_start": {
+      "task_id": "01",
+      "task_name": "search",
+      "description": "在Telegram中搜索指定内容。",
+      "application_info": {
+        "name": "Telegram Desktop",
+        "executable_path": "/workspace/PC-Canary/apps/tdesktop/out/Debug/Telegram",
+        "args": []
+      },
+      "task_parameters": {
+        "query": "news"
+      },
+      "instruction_template": "请在Telegram中搜索'${query}'。",
+      "evaluation_setup": {
+        "scripts": [
+          {
+            "role": "hook",
+            "path": "hooker.js"
+          },
+          {
+            "role": "handler",
+            "path": "handler.py"
+          }
+        ],
+        "timeout": 180
+      },
+      "total_key_steps": 1,
+      "preconditions": {
+        "telegram_running": true,
+        "user_logged_in": true
+      },
+      "events": {
+        "script_initialized": {
+          "description": "钩子脚本初始化",
+          "is_key_step": false
+        },
+        "search_function_found": {
+          "description": "找到搜索函数",
+          "is_key_step": false
+        },
+        "search_query_detected": {
+          "description": "检测到搜索查询 (触发检查)",
+          "is_key_step": true,
+          "key_step_index": 1,
+          "key_step_name": "查询结果已显示"
+        },
+        "error": {
+          "description": "来自脚本的错误事件",
+          "is_key_step": false
+        }
+      },
+      "mcp_servers": [
+        {
+          "command": "uv",
+          "args": [
+            "--directory",
+            "PC-Canary/apps/tdesktop/telegram-mcp",
+            "run",
+            "main.py"
+          ]
+        }
+      ],
+      "exec_mode": "mixed"
+    },
+    "app_path": null,
+    "app_process_pid": null,
+    "session_end_iso": "2025-09-28T23:46:34+0000",
+    "session_end_unix": 1759103194.868238,
+    "session_duration_seconds": 72.471
+  },
+  "raw_events": [
+    {
+      "event_type": "TASK_START",
+      "timestamp": 1759103122.3974774
+    },
+    {
+      "event_type": "LLM_QUERY_START",
+      "timestamp": 1759103154.177662,
+      "model_name": "claude-3-7-sonnet-20250219"
+    },
+    {
+      "event_type": "LLM_QUERY_END",
+      "timestamp": 1759103154.1839573,
+      "status": "error",
+      "error": "[Errno 2] No such file or directory: 'uv'",
+      "prompt_tokens": null,
+      "completion_tokens": null,
+      "cost": null
+    },
+    {
+      "event_type": "LLM_QUERY_START",
+      "timestamp": 1759103189.9126792,
+      "model_name": "claude-3-7-sonnet-20250219"
+    },
+    {
+      "event_type": "LLM_QUERY_END",
+      "timestamp": 1759103189.9140937,
+      "status": "error",
+      "error": "[Errno 2] No such file or directory: 'uv'",
+      "prompt_tokens": null,
+      "completion_tokens": null,
+      "cost": null
+    },
+    {
+      "event_type": "TASK_END",
+      "status": "stopped",
+      "reason": "Evaluator stopped externally or timed out before handler completion",
+      "timestamp": 1759103194.868298
+    }
+  ],
+  "computed_metrics": {
+    "total_duration_seconds": null,
+    "llm_call_count": 2,
+    "llm_token_usage": {
+      "total_prompt_tokens": 0,
+      "total_completion_tokens": 0,
+      "total_tokens": 0
+    },
+    "task_completion_status": {
+      "status": "unknown",
+      "reason": ""
+    },
+    "agent_reported_completion": {
+      "completed": false,
+      "reasoning": null
+    },
+    "tool_usage_stats": {
+      "total_tool_calls": 0,
+      "tools": {}
+    },
+    "error_summary": {
+      "total_error_count": 2,
+      "errors_by_source": {
+        "LLM": {
+          "count": 2,
+          "errors": [
+            {
+              "timestamp": 1759103154.1839573,
+              "details": "[Errno 2] No such file or directory: 'uv'"
+            },
+            {
+              "timestamp": 1759103189.9140937,
+              "details": "[Errno 2] No such file or directory: 'uv'"
+            }
+          ]
+        }
+      }
+    },
+    "key_step_tracker": {
+      "total_steps": 1,
+      "completed_steps_count": 0,
+      "highest_index_reached": 0,
+      "completion_rate_by_count": 0.0,
+      "completion_rate_by_progress": 0.0,
+      "final_step_reached": false,
+      "completed_indices_list": [],
+      "completion_timeline": []
+    }
+  }
+}

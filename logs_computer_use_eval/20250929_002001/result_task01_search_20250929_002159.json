@@ -1,0 +1,99 @@
+{
+  "metadata": {
+    "session_start_iso": "2025-09-29T00:20:01+0000",
+    "session_start_unix": 1759105201.0663433,
+    "task_config_at_start": {
+      "task_id": "01",
+      "task_name": "search_keyword",
+      "description": "在FreeTube中搜素指定关键词, 并且查看搜索结果",
+      "application_info": {
+        "name": "FreeTube",
+        "executable_path": "/usr/bin/freetube",
+        "args": []
+      },
+      "task_parameters": {
+        "query": "porsche"
+      },
+      "instruction_template": "在FreeTube应用中搜索关键词 '${query}', 展示搜索结果",
+      "evaluation_setup": {
+        "scripts": [
+          {
+            "role": "hook",
+            "path": "hooker.js"
+          },
+          {
+            "role": "handler",
+            "path": "handler.py"
+          }
+        ],
+        "timeout": 120
+      },
+      "preconditions": {
+        "freetube_running": true
+      },
+      "events": {
+        "search_by_enter": "以回车的方式或者点击条目的方式触发了搜索",
+        "hook_keyDown_and_hit_option": "成功hook handleClick函数",
+        "click_search_button": "以点击搜索按钮的方式触发了搜索",
+        "hook_search_button": "成功hook搜索button"
+      },
+      "exec_mode": "mixed"
+    },
+    "app_path": null,
+    "app_process_pid": null,
+    "session_end_iso": "2025-09-29T00:21:59+0000",
+    "session_end_unix": 1759105319.9631016,
+    "session_duration_seconds": 118.897
+  },
+  "raw_events": [
+    {
+      "event_type": "TASK_START",
+      "timestamp": 1759105201.0663433
+    },
+    {
+      "event_type": "LLM_QUERY_START",
+      "timestamp": 1759105208.6866999,
+      "model_name": "claude-3-7-sonnet-20250219"
+    },
+    {
+      "event_type": "LLM_QUERY_END",
+      "timestamp": 1759105240.7278252,
+      "status": "success",
+      "error": null,
+      "prompt_tokens": null,
+      "completion_tokens": null,
+      "cost": null
+    },
+    {
+      "event_type": "TASK_END",
+      "status": "stopped",
+      "reason": "Evaluator stopped externally or timed out before handler completion",
+      "timestamp": 1759105319.963175
+    }
+  ],
+  "computed_metrics": {
+    "total_duration_seconds": null,
+    "llm_call_count": 1,
+    "llm_token_usage": {
+      "total_prompt_tokens": 0,
+      "total_completion_tokens": 0,
+      "total_tokens": 0
+    },
+    "task_completion_status": {
+      "status": "unknown",
+      "reason": ""
+    },
+    "agent_reported_completion": {
+      "completed": false,
+      "reasoning": null
+    },
+    "tool_usage_stats": {
+      "total_tool_calls": 0,
+      "tools": {}
+    },
+    "error_summary": {
+      "total_error_count": 0,
+      "errors_by_source": {}
+    }
+  }
+}

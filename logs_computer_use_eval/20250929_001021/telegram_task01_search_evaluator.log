@@ -1,0 +1,48 @@
+2025-09-29 00:10:21,501 - telegram_task01_search_evaluator - INFO - 已使用自定义参数设置: exec_mode=mixed
+2025-09-29 00:10:21,502 - telegram_task01_search_evaluator - INFO - 加载任务指令: 请在Telegram中搜索'news'。
+2025-09-29 00:10:21,502 - telegram_task01_search_evaluator - INFO - 结果收集器初始化完成，结果将保存在: logs_computer_use_eval/20250929_001021
+2025-09-29 00:10:21,502 - telegram_task01_search_evaluator - INFO - 添加钩子脚本: /workspace/PC-Canary/tests/tasks/telegram/task01_search/hooker.js
+2025-09-29 00:10:21,503 - telegram_task01_search_evaluator - INFO - 成功设置回调函数: /workspace/PC-Canary/tests/tasks/telegram/task01_search/handler.py.message_handler
+2025-09-29 00:10:21,504 - telegram_task01_search_evaluator - INFO - 评估器初始化完成: task01_search
+2025-09-29 00:10:21,504 - telegram_task01_search_evaluator - INFO - 注册了新的完成回调函数
+2025-09-29 00:10:21,504 - telegram_task01_search_evaluator - ERROR - 应用路径不存在: None
+2025-09-29 00:10:21,504 - telegram_task01_search_evaluator - INFO - 开始为任务 task01_search 注册指标...
+2025-09-29 00:10:21,504 - telegram_task01_search_evaluator - DEBUG - 注册标准指标: total_duration_seconds for task task01_search
+2025-09-29 00:10:21,504 - telegram_task01_search_evaluator - DEBUG - 注册标准指标: llm_call_count for task task01_search
+2025-09-29 00:10:21,504 - telegram_task01_search_evaluator - DEBUG - 注册标准指标: llm_token_usage for task task01_search
+2025-09-29 00:10:21,504 - telegram_task01_search_evaluator - DEBUG - 注册标准指标: task_completion_status for task task01_search
+2025-09-29 00:10:21,504 - telegram_task01_search_evaluator - DEBUG - 注册标准指标: agent_reported_completion for task task01_search
+2025-09-29 00:10:21,504 - telegram_task01_search_evaluator - DEBUG - 注册标准指标: tool_usage_stats for task task01_search
+2025-09-29 00:10:21,504 - telegram_task01_search_evaluator - DEBUG - 注册标准指标: error_summary for task task01_search
+2025-09-29 00:10:21,504 - telegram_task01_search_evaluator - DEBUG - 注册任务特定指标: key_step_tracker for task task01_search (Total Steps: 1, Names: {1: '查询结果已显示'})
+2025-09-29 00:10:21,504 - telegram_task01_search_evaluator - INFO - 任务 task01_search 的指标注册完成，共 8 个指标。
+2025-09-29 00:10:21,504 - telegram_task01_search_evaluator - INFO - 正在重置任务 task01_search 的指标状态...
+2025-09-29 00:10:21,504 - telegram_task01_search_evaluator - INFO - 任务 task01_search 的 8 个指标已重置。
+2025-09-29 00:10:21,504 - telegram_task01_search_evaluator - INFO - 任务会话开始: task01_search
+2025-09-29 00:10:21,504 - telegram_task01_search_evaluator - DEBUG - 记录原始事件: task01_search - TASK_START - {'timestamp': 1759104621.5046241}
+2025-09-29 00:10:21,504 - telegram_task01_search_evaluator.TotalTimeMetric - DEBUG - 记录任务开始时间: 1759104621.5046241
+2025-09-29 00:10:21,504 - telegram_task01_search_evaluator - ERROR - 连接到进程失败: 'NoneType' object has no attribute 'pid'
+2025-09-29 00:10:21,504 - telegram_task01_search_evaluator - INFO - 评估器启动成功
+2025-09-29 00:10:32,219 - telegram_task01_search_evaluator - DEBUG - 记录原始事件: task01_search - LLM_QUERY_START - {'timestamp': 1759104632.2198083, 'model_name': 'claude-3-7-sonnet-20250219'}
+2025-09-29 00:10:32,220 - telegram_task01_search_evaluator.LLMCallCounterMetric - DEBUG - LLM 调用次数增加: 1
+2025-09-29 00:10:32,224 - telegram_task01_search_evaluator - DEBUG - 记录原始事件: task01_search - LLM_QUERY_END - {'timestamp': 1759104632.2245166, 'status': 'error', 'error': "[Errno 2] No such file or directory: 'uv'", 'prompt_tokens': None, 'completion_tokens': None, 'cost': None}
+2025-09-29 00:10:32,224 - telegram_task01_search_evaluator.ErrorCounterMetric - WARNING - 记录到错误 - 来源: LLM, 详情: [Errno 2] No such file or directory: 'uv'
+2025-09-29 00:12:09,931 - telegram_task01_search_evaluator - INFO - 脚本卸载完成
+2025-09-29 00:12:09,931 - telegram_task01_search_evaluator - INFO - 开始为任务 task01_search 计算最终指标...
+2025-09-29 00:12:09,932 - telegram_task01_search_evaluator.TotalTimeMetric - WARNING - 无法计算总时长，开始: 1759104621.5046241, 结束: None
+2025-09-29 00:12:09,932 - telegram_task01_search_evaluator - DEBUG - 指标计算完成 (task01_search): total_duration_seconds = None
+2025-09-29 00:12:09,932 - telegram_task01_search_evaluator - DEBUG - 指标计算完成 (task01_search): llm_call_count = 1
+2025-09-29 00:12:09,932 - telegram_task01_search_evaluator - DEBUG - 指标计算完成 (task01_search): llm_token_usage = {'total_prompt_tokens': 0, 'total_completion_tokens': 0, 'total_tokens': 0}
+2025-09-29 00:12:09,932 - telegram_task01_search_evaluator - DEBUG - 指标计算完成 (task01_search): task_completion_status = {'status': 'unknown', 'reason': ''}
+2025-09-29 00:12:09,932 - telegram_task01_search_evaluator - DEBUG - 指标计算完成 (task01_search): agent_reported_completion = {'completed': False, 'reasoning': None}
+2025-09-29 00:12:09,932 - telegram_task01_search_evaluator - DEBUG - 指标计算完成 (task01_search): tool_usage_stats = {'total_tool_calls': 0, 'tools': {}}
+2025-09-29 00:12:09,932 - telegram_task01_search_evaluator - DEBUG - 指标计算完成 (task01_search): error_summary = {'total_error_count': 1, 'errors_by_source': {'LLM': {'count': 1, 'errors': [{'timestamp': 1759104632.2245166, 'details': "[Errno 2] No such file or directory: 'uv'"}]}}}
+2025-09-29 00:12:09,932 - telegram_task01_search_evaluator - DEBUG - 指标计算完成 (task01_search): key_step_tracker = {'total_steps': 1, 'completed_steps_count': 0, 'highest_index_reached': 0, 'completion_rate_by_count': 0.0, 'completion_rate_by_progress': 0.0, 'final_step_reached': False, 'completed_indices_list': [], 'completion_timeline': []}
+2025-09-29 00:12:09,932 - telegram_task01_search_evaluator - INFO - 任务 task01_search 的最终指标计算完成。
+2025-09-29 00:12:09,932 - telegram_task01_search_evaluator - INFO - 任务会话结束: task01_search. 总时长: 108.428 秒
+2025-09-29 00:12:09,932 - telegram_task01_search_evaluator - WARNING - Evaluator stopped externally or timed out before handler completion
+2025-09-29 00:12:09,932 - telegram_task01_search_evaluator - DEBUG - 记录原始事件: task01_search - TASK_END - {'status': 'stopped', 'reason': 'Evaluator stopped externally or timed out before handler completion', 'timestamp': 1759104729.932397}
+2025-09-29 00:12:09,932 - telegram_task01_search_evaluator.TotalTimeMetric - DEBUG - 记录任务结束时间: 1759104729.932397
+2025-09-29 00:12:09,932 - telegram_task01_search_evaluator.TaskCompletionStatusMetric - INFO - 记录任务最终状态: stopped, 原因: Evaluator stopped externally or timed out before handler completion
+2025-09-29 00:12:09,932 - telegram_task01_search_evaluator - INFO - 任务 task01_search 结果已保存: logs_computer_use_eval/20250929_001021/result_task01_search_20250929_001209.json
+2025-09-29 00:12:09,932 - telegram_task01_search_evaluator - INFO - 评估结果已保存: logs_computer_use_eval/20250929_001021/result_task01_search_20250929_001209.json

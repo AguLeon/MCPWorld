@@ -2,7 +2,16 @@ from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, fields, replace
 from typing import Any
 
-from anthropic.types.beta import BetaToolUnionParam
+# from anthropic.types.beta import BetaToolUnionParam
+
+try:
+    from anthropic.types.beta import BetaToolUnionParam
+except ImportError:
+    try:
+        # newer SDKs
+        from anthropic.types.tool_types import ToolUnionParam as BetaToolUnionParam
+    except ImportError:
+        from typing import Any as BetaToolUnionParam
 
 
 class BaseAnthropicTool(metaclass=ABCMeta):

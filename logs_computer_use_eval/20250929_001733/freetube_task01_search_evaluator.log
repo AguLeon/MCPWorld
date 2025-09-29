@@ -1,0 +1,2 @@
+2025-09-29 00:17:33,927 - freetube_task01_search_evaluator - WARNING - 配置文件不存在: /workspace/PC-Canary/tests/tasks/freetube/task01_search/config.json
+2025-09-29 00:17:33,927 - freetube_task01_search_evaluator - INFO - 结果收集器初始化完成，结果将保存在: logs_computer_use_eval/20250929_001733

@@ -436,6 +436,7 @@ async def main():
                 if st.session_state.thinking
                 else None,
                 token_efficient_tools_beta=st.session_state.token_efficient_tools_beta,
+                is_timeout=False,
             )
 
 
