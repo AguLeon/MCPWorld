@@ -135,6 +135,16 @@ For scenarios where a UI is not needed or desired (e.g., automated batch testing
 *   Ensure the VNC server is running as described in the "Interactive Agent Demo" section if your tasks require GUI interaction. The VNC server provides the environment for the agent to operate in.
 *   Ensure you have set your Anthropic API key, either via the `--api_key` argument or the `ANTHROPIC_API_KEY` environment variable.
 
+#### Additional setup (application specific)
+<details>
+    <summary> Running VS-Code task</summary>
+    <ul>
+        <li> Go to VS-Code Directory `cd PC-Canary/apps/vscode`</li>
+        <li> Compile VS-Code `yarn run compile` </li>
+        <li> Run VS-Code `./scripts/code.sh --no-sandbox` </li>
+    </ul>
+</details>
+
 **Example Command:**
 
 ```bash
