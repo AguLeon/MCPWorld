@@ -224,7 +224,7 @@ async def sampling_loop(
             system = BetaTextBlockParam(
                 type="text",
                 text=f"{SYSTEM_PROMPT_API_ONLY if exec_mode == 'api' else SYSTEM_PROMPT}{' ' + system_prompt_suffix if system_prompt_suffix else ''}",
-            )        
+            )
 
         while not is_timeout():
             enable_prompt_caching = False
@@ -233,7 +233,7 @@ async def sampling_loop(
                 betas.append("token-efficient-tools-2025-02-19")
             image_truncation_threshold = only_n_most_recent_images or 0
             if provider == APIProvider.ANTHROPIC:
-                client = Anthropic(api_key=api_key, max_retries=4, http_client=httpx.Client(proxy="http://10.161.28.28:10809"))
+                client = Anthropic(api_key=api_key, max_retries=4)
                 enable_prompt_caching = True
             elif provider == APIProvider.VERTEX:
                 client = AnthropicVertex()
