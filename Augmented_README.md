@@ -105,7 +105,7 @@ These instructions assume you are running commands inside the DevContainer.
 
     *   Run a MCP-Proxy Server: This is required for certain test cases (e.g. VS-Code). Ensure `uv` and `mcp-proxy` are installed (if not, you can pip install it)
         ```bash
-        mcp-proxy --host=0.0.0.0 --port 6010 uvx mcp-server-fetch > /tmp/mcp-proxy.log 2>&1 &```
+        mcp-proxy --host=0.0.0.0 --port 6010 uvx mcp-server-fetch > /tmp/mcp-proxy.log 2>&1 &
 
     *   **Agent Demo & Evaluator UI (Streamlit App):** This application serves as the control panel for running tasks with the agent and viewing evaluation results.
         ```bash
