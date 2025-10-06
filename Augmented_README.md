@@ -102,7 +102,10 @@ These instructions assume you are running commands inside the DevContainer.
     *   **Main Page HTTP Server:** This server provides a unified entry point to access both VNC and the Streamlit UI.
         ```bash
         python computer-use-demo/image/http_server.py > /tmp/http_server.log 2>&1 &
-        ```
+
+    *   Run a MCP-Proxy Server: This is required for certain test cases (e.g. VS-Code). Ensure `uv` and `mcp-proxy` are installed (if not, you can pip install it)
+        ```bash
+        mcp-proxy --host=0.0.0.0 --port 6010 uvx mcp-server-fetch > /tmp/mcp-proxy.log 2>&1 &```
 
     *   **Agent Demo & Evaluator UI (Streamlit App):** This application serves as the control panel for running tasks with the agent and viewing evaluation results.
         ```bash
@@ -136,9 +139,9 @@ For scenarios where a UI is not needed or desired (e.g., automated batch testing
 
 ```bash
 python computer-use-demo/run_pure_computer_use_with_eval.py \
-  --api_key <YOUR_ANTHROPIC_API_KEY> \
+  --api_key $ANTHROPIC_API_KEY \
   --model claude-3-7-sonnet-20250219 \
-  --task_id telegram/task01_search \
+  --task_id vscode/task01_updateColorTheme\
   --log_dir logs_computer_use_eval \
   --exec_mode mixed
 ```
