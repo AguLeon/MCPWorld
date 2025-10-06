@@ -63,6 +63,7 @@ docker rm -f mcpworld 2>/dev/null
 docker run --name mcpworld \
   -e ANTHROPIC_API_KEY \
   -p 6080:6080 -p 8501:8501 -p 8081:8081 -p 5904:5904 \
+  --privileged \
   -v /home/cc/MCPWorld:/workspace \
   -it mcpworld:pc-canary /bin/bash
 ```
