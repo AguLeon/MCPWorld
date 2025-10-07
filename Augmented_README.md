@@ -40,7 +40,7 @@ MCPWorld is an open-source benchmarking framework designed for evaluating **Comp
 ### Quick Setup
 
 ```bash
-git clone https://github.com/SAAgent/MCPWorld.git
+git clone https://github.com/AguLeon/MCPWorld
 cd MCPWorld
 git submodule update --init PC-Canary
 ```
