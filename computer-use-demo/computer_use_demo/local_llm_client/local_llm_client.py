@@ -116,7 +116,7 @@ class LocalLLMClient:
             "model": self.model,
             "messages": openai_messages,
             "max_tokens": max_tokens,
-            "temperature": 0.7,
+            "temperature": 0.0,
         }
 
         if openai_tools:
