@@ -18,16 +18,13 @@ class LocalLLMClient:
     Works with Ollama, LM Studio, vLLM, llama.cpp, etc.
     """
 
-    def __init__(
-        self,
-        base_url: str = "http://localhost:11434/v1",
-        api_key: str = "dummy",
-        model: str = "llama3",
-    ):
-        self.base_url = base_url.rstrip("/")
-        self.api_key = api_key
-        self.model = model
-        self.client = httpx.Client(timeout=300.0)
+    base_url: str = "http://localhost:11434/v1"
+    api_key: str = "dummy"
+    model: str = "llama3"
+    client: httpx.Client = httpx.Client(timeout=300.0)
+
+    def __post_init__(self):
+        self.base_url = self.base_url.rstrip("/")
 
     def _convert_messages_to_openai(
         self, messages: list[BetaMessageParam], system_prompt: str
