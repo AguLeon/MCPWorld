@@ -8,6 +8,7 @@ from enum import StrEnum
 from typing import Any, Optional, cast
 
 import httpx
+from local_llm.local_llm_client import LocalLLMClient
 
 from anthropic import (
     Anthropic,
@@ -188,7 +189,16 @@ async def sampling_loop(
             if token_efficient_tools_beta:
                 betas.append("token-efficient-tools-2025-02-19")
             image_truncation_threshold = only_n_most_recent_images or 0
-            if provider == APIProvider.ANTHROPIC:
+            if provider == APIProvider.LOCAL:
+                client = LocalLLMClient(
+                    base_url="http://localhost:11434/v1",
+                    api_key="dummy",
+                    model="llama3",
+                )
+                # Disable features not supported by most local LLMs
+                enable_prompt_caching = False
+                only_n_most_recent_images = 10  # Limit images for local LLMs
+            elif provider == APIProvider.ANTHROPIC:
                 client = Anthropic(api_key=api_key, max_retries=4)
                 enable_prompt_caching = True
             elif provider == APIProvider.VERTEX:
@@ -223,28 +233,40 @@ async def sampling_loop(
             # implementation may be able call the SDK directly with:
             # `response = client.messages.create(...)` instead.
             try:
-                raw_response = client.beta.messages.with_raw_response.create(
-                    max_tokens=max_tokens,
-                    messages=messages,
-                    model=model,
-                    system=[system],
-                    tools=all_tool_list,
-                    betas=betas,
-                    extra_body=extra_body,
-                    temperature=0,
-                )
+                if provider == APIProvider.LOCAL:
+                    response = client.beta_messages_create(
+                        max_tokens=max_tokens,
+                        messages=messages,
+                        model=model,
+                        system=[system],
+                        tools=tool_collection.to_params(),
+                    )
+                    # Create mock request/response for callback
+                    api_response_callback(None, None, None)
+                else:
+                    raw_response = client.beta.messages.with_raw_response.create(
+                        max_tokens=max_tokens,
+                        messages=messages,
+                        model=model,
+                        system=[system],
+                        tools=all_tool_list,
+                        betas=betas,
+                        extra_body=extra_body,
+                        temperature=0,
+                    )
+                    api_response_callback(
+                        raw_response.http_response.request,
+                        raw_response.http_response,
+                        None,
+                    )
+                    response = raw_response.parse()
+
             except (APIStatusError, APIResponseValidationError) as e:
                 api_response_callback(e.request, e.response, e)
                 return messages
             except APIError as e:
                 api_response_callback(e.request, e.body, e)
                 return messages
-
-            api_response_callback(
-                raw_response.http_response.request, raw_response.http_response, None
-            )
-
-            response = raw_response.parse()
 
             response_params = _response_to_params(response)
             messages.append(
