@@ -2,15 +2,13 @@
 Agentic sampling loop that calls the Anthropic API and local implementation of anthropic-defined computer use tools.
 """
 
-import platform
-import os
-from collections.abc import Callable
-from datetime import datetime
-from enum import StrEnum
-from typing import Any, cast, Optional, List, Dict
 import time
+from collections.abc import Callable
+from enum import StrEnum
+from typing import Any, Optional, cast
 
 import httpx
+
 from anthropic import (
     Anthropic,
     AnthropicBedrock,
@@ -18,7 +16,6 @@ from anthropic import (
     APIError,
     APIResponseValidationError,
     APIStatusError,
-    DefaultHttpxClient
 )
 from anthropic.types.beta import (
     BetaCacheControlEphemeralParam,
@@ -32,14 +29,19 @@ from anthropic.types.beta import (
     BetaToolUseBlockParam,
 )
 
+from .mcpclient import MCPClient
+from .system_prompt import (
+    SYSTEM_PROMPT,
+    SYSTEM_PROMPT_API_ONLY,
+    SYSTEM_PROMPT_NO_BASH,
+    SYSTEM_PROMPT_NO_BASH_API_ONLY,
+)
 from .tools import (
     TOOL_GROUPS_BY_VERSION,
     ToolCollection,
     ToolResult,
     ToolVersion,
 )
-
-from .mcpclient import MCPClient
 
 PROMPT_CACHING_BETA_FLAG = "prompt-caching-2024-07-31"
 
@@ -55,59 +57,7 @@ class APIProvider(StrEnum):
     ANTHROPIC = "anthropic"
     BEDROCK = "bedrock"
     VERTEX = "vertex"
-
-
-# This system prompt is optimized for the Docker environment in this repository and
-# specific tool combinations enabled.
-# We encourage modifying this system prompt to ensure the model has context for the
-# environment it is running in, and to provide any additional information that may be
-# helpful for the task at hand.
-SYSTEM_PROMPT = f"""<SYSTEM_CAPABILITY>
-* You are utilising an Ubuntu virtual machine using {platform.machine()} architecture with internet access.
-* You can feel free to install Ubuntu applications with your bash tool. Use curl instead of wget.
-* To open firefox, please just click on the firefox icon.  Note, firefox-esr is what is installed on your system.
-* Using bash tool you can start GUI applications, but you need to set export DISPLAY={os.getenv("DISPLAY")} and use a subshell. For example "(DISPLAY={os.getenv("DISPLAY")} xterm &)". GUI apps run with bash tool will appear within your desktop environment, but they may take some time to appear. Take a screenshot to confirm it did.
-* When using your bash tool with commands that are expected to output very large quantities of text, redirect into a tmp file and use str_replace_editor or `grep -n -B <lines before> -A <lines after> <query> <filename>` to confirm output.
-* When viewing a page it can be helpful to zoom out so that you can see everything on the page.  Either that, or make sure you scroll down to see everything before deciding something isn't available.
-* When using your computer function calls, they take a while to run and send back to you.  Where possible/feasible, try to chain multiple of these calls all into one function calls request.
-* The current date is {datetime.today().strftime('%A, %B %-d, %Y')}.
-</SYSTEM_CAPABILITY>
-
-<IMPORTANT>
-* When using Firefox, if a startup wizard appears, IGNORE IT.  Do not even click "skip this step".  Instead, click on the address bar where it says "Search or enter address", and enter the appropriate search term or URL there.
-* If the item you are looking at is a pdf, if after taking a single screenshot of the pdf it seems that you want to read the entire document instead of trying to continue to read the pdf from your screenshots + navigation, determine the URL, use curl to download the pdf, install and use pdftotext to convert it to a text file, and then read that text file directly with your StrReplaceEditTool.
-</IMPORTANT>"""
-
-SYSTEM_PROMPT_API_ONLY = f"""<SYSTEM_CAPABILITY>
-* You are utilising an Ubuntu virtual machine using {platform.machine()} architecture with internet access.
-* You can feel free to install Ubuntu applications with your bash tool. Use curl instead of wget.
-* When using your bash tool with commands that are expected to output very large quantities of text, redirect into a tmp file and use str_replace_editor or `grep -n -B <lines before> -A <lines after> <query> <filename>` to confirm output.
-* When using your computer function calls, they take a while to run and send back to you.  Where possible/feasible, try to chain multiple of these calls all into one function calls request.
-* The current date is {datetime.today().strftime('%A, %B %-d, %Y')}.
-</SYSTEM_CAPABILITY>
-
-<IMPORTANT>
-* If the item you are looking at is a pdf, if after taking a single screenshot of the pdf it seems that you want to read the entire document instead of trying to continue to read the pdf from your screenshots + navigation, determine the URL, use curl to download the pdf, install and use pdftotext to convert it to a text file, and then read that text file directly with your StrReplaceEditTool.
-</IMPORTANT>"""
-
-SYSTEM_PROMPT_NO_BASH = f"""<SYSTEM_CAPABILITY>
-* You are utilising an Ubuntu virtual machine using {platform.machine()} architecture with internet access.
-* To open firefox, please just click on the firefox icon.  Note, firefox-esr is what is installed on your system.
-* When viewing a page it can be helpful to zoom out so that you can see everything on the page.  Either that, or make sure you scroll down to see everything before deciding something isn't available.
-* When using your computer function calls, they take a while to run and send back to you.  Where possible/feasible, try to chain multiple of these calls all into one function calls request.
-* The current date is {datetime.today().strftime('%A, %B %-d, %Y')}.
-</SYSTEM_CAPABILITY>
-
-<IMPORTANT>
-* When using Firefox, if a startup wizard appears, IGNORE IT.  Do not even click "skip this step".  Instead, click on the address bar where it says "Search or enter address", and enter the appropriate search term or URL there.
-</IMPORTANT>"""
-
-SYSTEM_PROMPT_NO_BASH_API_ONLY = f"""<SYSTEM_CAPABILITY>
-* You are utilising an Ubuntu virtual machine using {platform.machine()} architecture with internet access.
-* When using your computer function calls, they take a while to run and send back to you.  Where possible/feasible, try to chain multiple of these calls all into one function calls request.
-* The current date is {datetime.today().strftime('%A, %B %-d, %Y')}.
-</SYSTEM_CAPABILITY>
-"""
+    LOCAL = "local"
 
 
 # --- Evaluator Helper Functions ---
@@ -115,7 +65,7 @@ def _record_tool_call_start(
     evaluator: Optional[BaseEvaluator],
     task_id: Optional[str],
     tool_name: str,
-    tool_input: Dict[str, Any]
+    tool_input: dict[str, Any],
 ):
     start_time = time.time()
     """Records the TOOL_CALL_START event if evaluator is enabled."""
@@ -127,10 +77,11 @@ def _record_tool_call_start(
                     "timestamp": start_time,
                     "tool_name": tool_name,
                     "args": tool_input,
-                }
+                },
             )
         except Exception as rec_e:
             print(f"[Evaluator Error] Failed to record TOOL_CALL_START: {rec_e}")
+
 
 def _record_tool_call_end(
     evaluator: Optional[BaseEvaluator],
@@ -165,12 +116,11 @@ def _record_tool_call_end(
             else:
                 event_data["result"] = tool_result.error
 
-            evaluator.record_event(
-                AgentEvent.TOOL_CALL_END,
-                event_data
-            )
+            evaluator.record_event(AgentEvent.TOOL_CALL_END, event_data)
         except Exception as rec_e:
             print(f"[Evaluator Error] Failed to record TOOL_CALL_END: {rec_e}")
+
+
 # --- End Evaluator Helper Functions ---
 
 
@@ -218,12 +168,18 @@ async def sampling_loop(
         if tool_version == "computer_only":
             system = BetaTextBlockParam(
                 type="text",
-                text=f"{SYSTEM_PROMPT_NO_BASH_API_ONLY if exec_mode == 'api' else SYSTEM_PROMPT_NO_BASH}{' ' + system_prompt_suffix if system_prompt_suffix else ''}",
+                text=f"{
+                    SYSTEM_PROMPT_NO_BASH_API_ONLY
+                    if exec_mode == 'api'
+                    else SYSTEM_PROMPT_NO_BASH
+                }{' ' + system_prompt_suffix if system_prompt_suffix else ''}",
             )
         else:
             system = BetaTextBlockParam(
                 type="text",
-                text=f"{SYSTEM_PROMPT_API_ONLY if exec_mode == 'api' else SYSTEM_PROMPT}{' ' + system_prompt_suffix if system_prompt_suffix else ''}",
+                text=f"{
+                    SYSTEM_PROMPT_API_ONLY if exec_mode == 'api' else SYSTEM_PROMPT
+                }{' ' + system_prompt_suffix if system_prompt_suffix else ''}",
             )
 
         while not is_timeout():
