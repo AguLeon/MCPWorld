@@ -8,7 +8,7 @@ from enum import StrEnum
 from typing import Any, Optional, cast
 
 import httpx
-from local_llm.local_llm_client import LocalLLMClient
+from local_llm_client.local_llm_client import LocalLLMClient
 
 from anthropic import (
     Anthropic,
