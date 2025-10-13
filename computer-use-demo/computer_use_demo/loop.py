@@ -7,31 +7,34 @@ import os
 from collections.abc import Callable
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, cast, Optional, List, Dict
+from typing import Any, cast, Optional, Dict
 import time
+import json
 
 import httpx
-from anthropic import (
-    Anthropic,
-    AnthropicBedrock,
-    AnthropicVertex,
-    APIError,
-    APIResponseValidationError,
-    APIStatusError,
-    DefaultHttpxClient
-)
+from anthropic import APIError, APIResponseValidationError, APIStatusError
 from anthropic.types.beta import (
     BetaCacheControlEphemeralParam,
     BetaContentBlockParam,
-    BetaImageBlockParam,
-    BetaMessage,
     BetaMessageParam,
-    BetaTextBlock,
     BetaTextBlockParam,
     BetaToolResultBlockParam,
-    BetaToolUseBlockParam,
 )
 
+from .providers import (
+    ConversationMessage,
+    ConversationTranscript,
+    MessageSegment,
+    TextSegment,
+    ThinkingSegment,
+    ToolCallSegment,
+    ToolResultSegment,
+    ToolSpec,
+    ProviderOptions,
+    ProviderRegistry,
+    AnthropicAdapter,
+    OpenAIAdapter,
+)
 from .tools import (
     TOOL_GROUPS_BY_VERSION,
     ToolCollection,
@@ -55,6 +58,26 @@ class APIProvider(StrEnum):
     ANTHROPIC = "anthropic"
     BEDROCK = "bedrock"
     VERTEX = "vertex"
+    OPENAI = "openai"
+
+
+_PROVIDER_REGISTRY = ProviderRegistry()
+_PROVIDER_REGISTRY.register(
+    APIProvider.ANTHROPIC.value,
+    lambda: AnthropicAdapter(APIProvider.ANTHROPIC.value),
+)
+_PROVIDER_REGISTRY.register(
+    APIProvider.BEDROCK.value,
+    lambda: AnthropicAdapter(APIProvider.BEDROCK.value),
+)
+_PROVIDER_REGISTRY.register(
+    APIProvider.VERTEX.value,
+    lambda: AnthropicAdapter(APIProvider.VERTEX.value),
+)
+_PROVIDER_REGISTRY.register(
+    APIProvider.OPENAI.value,
+    lambda: OpenAIAdapter(APIProvider.OPENAI.value),
+)
 
 
 # This system prompt is optimized for the Docker environment in this repository and
@@ -204,50 +227,48 @@ async def sampling_loop(
         tool_group = TOOL_GROUPS_BY_VERSION[tool_version]
         exec_mode = evaluator.config.get("exec_mode", "mixed")
         if exec_mode == "api":
-            for tool in tool_group.tools:
+            for tool in list(tool_group.tools):
                 if "computer" in tool.name:
                     tool_group.tools.remove(tool)
         tool_collection = ToolCollection(*(ToolCls() for ToolCls in tool_group.tools))
-        all_tool_list = tool_collection.to_params()
+        tool_specs: list[ToolSpec] = tool_collection.to_specs()
         if exec_mode in ["mixed", "api"]:
             for server in mcp_servers:
                 await mcp_client.connect_to_server(server)
-            mcp_tools = await mcp_client.list_tools()
-            all_tool_list.extend(mcp_tools)
+            tool_specs.extend(await mcp_client.list_tools())
 
         if tool_version == "computer_only":
-            system = BetaTextBlockParam(
-                type="text",
-                text=f"{SYSTEM_PROMPT_NO_BASH_API_ONLY if exec_mode == 'api' else SYSTEM_PROMPT_NO_BASH}{' ' + system_prompt_suffix if system_prompt_suffix else ''}",
+            base_system_prompt = (
+                SYSTEM_PROMPT_NO_BASH_API_ONLY
+                if exec_mode == "api"
+                else SYSTEM_PROMPT_NO_BASH
             )
         else:
-            system = BetaTextBlockParam(
-                type="text",
-                text=f"{SYSTEM_PROMPT_API_ONLY if exec_mode == 'api' else SYSTEM_PROMPT}{' ' + system_prompt_suffix if system_prompt_suffix else ''}",
+            base_system_prompt = (
+                SYSTEM_PROMPT_API_ONLY if exec_mode == "api" else SYSTEM_PROMPT
             )
+        system_prompt_text = (
+            f"{base_system_prompt} {system_prompt_suffix}"
+            if system_prompt_suffix
+            else base_system_prompt
+        )
+        system_block = BetaTextBlockParam(type="text", text=system_prompt_text)
+
+        adapter = _PROVIDER_REGISTRY.create(provider.value)
 
         while not is_timeout():
-            enable_prompt_caching = False
+            enable_prompt_caching = provider == APIProvider.ANTHROPIC
             betas = [tool_group.beta_flag] if tool_group.beta_flag else []
             if token_efficient_tools_beta:
                 betas.append("token-efficient-tools-2025-02-19")
+
             image_truncation_threshold = only_n_most_recent_images or 0
-            if provider == APIProvider.ANTHROPIC:
-                client = Anthropic(api_key=api_key, max_retries=4)
-                enable_prompt_caching = True
-            elif provider == APIProvider.VERTEX:
-                client = AnthropicVertex()
-            elif provider == APIProvider.BEDROCK:
-                client = AnthropicBedrock()
 
             if enable_prompt_caching:
                 betas.append(PROMPT_CACHING_BETA_FLAG)
                 _inject_prompt_caching(messages)
-                # Because cached reads are 10% of the price, we don't think it's
-                # ever sensible to break the cache by truncating images
                 only_n_most_recent_images = 0
-                # Use type ignore to bypass TypedDict check until SDK types are updated
-                system["cache_control"] = {"type": "ephemeral"}  # type: ignore
+                system_block["cache_control"] = {"type": "ephemeral"}  # type: ignore[index]
 
             if only_n_most_recent_images:
                 _maybe_filter_to_n_most_recent_images(
@@ -255,88 +276,128 @@ async def sampling_loop(
                     only_n_most_recent_images,
                     min_removal_threshold=image_truncation_threshold,
                 )
-            extra_body = {}
+
+            extra_body: Dict[str, Any] = {}
             if thinking_budget:
-                # Ensure we only send the required fields for thinking
                 extra_body = {
                     "thinking": {"type": "enabled", "budget_tokens": thinking_budget}
                 }
 
-            # Call the API
-            # we use raw_response to provide debug information to streamlit. Your
-            # implementation may be able call the SDK directly with:
-            # `response = client.messages.create(...)` instead.
-            try:
-                raw_response = client.beta.messages.with_raw_response.create(
-                    max_tokens=max_tokens,
-                    messages=messages,
-                    model=model,
-                    system=[system],
-                    tools=all_tool_list,
-                    betas=betas,
-                    extra_body=extra_body,
-                    temperature=0,
+            transcript = _beta_messages_to_transcript(messages)
+
+            provider_extra_options: Dict[str, Any] = {
+                "api_response_callback": api_response_callback,
+            }
+
+            if provider in {
+                APIProvider.ANTHROPIC,
+                APIProvider.BEDROCK,
+                APIProvider.VERTEX,
+            }:
+                provider_extra_options.update(
+                    {
+                        "api_key": api_key,
+                        "anthropic_betas": betas,
+                        "anthropic_system": [system_block],
+                        "beta_messages": messages,
+                        "extra_body": extra_body,
+                    }
                 )
-            except (APIStatusError, APIResponseValidationError) as e:
-                api_response_callback(e.request, e.response, e)
-                return messages
-            except APIError as e:
-                api_response_callback(e.request, e.body, e)
-                return messages
+            elif provider == APIProvider.OPENAI:
+                openai_api_key = api_key or os.getenv("OPENAI_API_KEY", "")
+                base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
+                endpoint = os.getenv("OPENAI_ENDPOINT", "/v1/chat/completions")
+                tool_choice = os.getenv("OPENAI_TOOL_CHOICE", "auto")
+                timeout_env = os.getenv("OPENAI_TIMEOUT")
+                response_format = os.getenv("OPENAI_RESPONSE_FORMAT")
 
-            api_response_callback(
-                raw_response.http_response.request, raw_response.http_response, None
+                provider_extra_options.update(
+                    {
+                        "api_key": openai_api_key,
+                        "base_url": base_url,
+                        "endpoint": endpoint,
+                        "system_prompts": [system_prompt_text],
+                        "tool_choice": tool_choice,
+                    }
+                )
+                if response_format:
+                    provider_extra_options["response_format"] = response_format
+                if timeout_env:
+                    try:
+                        provider_extra_options["timeout"] = float(timeout_env)
+                    except ValueError:
+                        pass
+
+            options = ProviderOptions(
+                model=model,
+                temperature=0.0,
+                max_output_tokens=max_tokens,
+                thinking_budget=thinking_budget,
+                extra_options=provider_extra_options,
             )
 
-            response = raw_response.parse()
+            request = adapter.prepare_request(transcript, tool_specs, options)
+            try:
+                provider_response = await adapter.invoke(request)
+            except (
+                APIStatusError,
+                APIResponseValidationError,
+                APIError,
+                httpx.HTTPError,
+                ValueError,
+            ):
+                return messages
 
-            response_params = _response_to_params(response)
-            messages.append(
-                {
-                    "role": "assistant",
-                    "content": response_params,
-                }
-            )
+            assistant_message = adapter.parse_response(provider_response)
+            assistant_beta = _conversation_message_to_beta(assistant_message)
+            messages.append(assistant_beta)
 
-            tool_result_content: list[BetaToolResultBlockParam] = []
-            for content_block in response_params:
-                output_callback(content_block)
-                if content_block["type"] == "tool_use":
-                    tool_name = content_block["name"]
-                    tool_input = cast(dict[str, Any], content_block["input"])
+            tool_result_segments: list[ToolResultSegment] = []
+            for segment in assistant_message.segments:
+                beta_block = _segment_to_beta_block(segment)
+                if beta_block is not None:
+                    output_callback(beta_block)
+
+                if isinstance(segment, ToolCallSegment):
+                    tool_name = segment.tool_name
+                    tool_input = cast(dict[str, Any], segment.arguments)
                     result: Optional[ToolResult] = None
 
-                    # --- Record Tool Start ---
                     _record_tool_call_start(
                         evaluator, evaluator_task_id, tool_name, tool_input
                     )
-                    # --- End Record Tool Start ---
-                    if content_block["name"] in tool_collection.tool_map.keys():
+
+                    if tool_name in tool_collection.tool_map.keys():
                         result = await tool_collection.run(
-                            name=content_block["name"],
-                            tool_input=cast(dict[str, Any], content_block["input"]),
+                            name=tool_name,
+                            tool_input=tool_input,
                         )
                     else:
                         result = await mcp_client.call_tool(
-                            name=content_block["name"],
-                            tool_input=cast(dict[str, Any], content_block["input"]),
+                            name=tool_name,
+                            tool_input=tool_input,
                         )
-                    # --- End Record Tool Start ---
                     _record_tool_call_end(
                         evaluator, evaluator_task_id, tool_name, result
                     )
-                    # --- End Record Tool End ---
 
-                    tool_result_content.append(
-                        _make_api_tool_result(result, content_block["id"])
+                    tool_result_segment = _make_tool_result_segment(
+                        result, segment.call_id
                     )
-                    tool_output_callback(result, content_block["id"])
+                    tool_result_segments.append(tool_result_segment)
+                    tool_output_callback(result, segment.call_id)
 
-            if not tool_result_content:
+            if not tool_result_segments:
                 return messages
 
-            messages.append({"content": tool_result_content, "role": "user"})
+            tool_result_blocks: list[BetaToolResultBlockParam] = [
+                _tool_result_segment_to_beta(segment)
+                for segment in tool_result_segments
+            ]
+            messages.append({"role": "user", "content": tool_result_blocks})
     finally:
+        with open("sample_message_stream.json", "w+") as f:
+            json.dump(messages, f)
         await mcp_client.cleanup()
 
 
@@ -389,29 +450,6 @@ def _maybe_filter_to_n_most_recent_images(
             tool_result["content"] = new_content
 
 
-def _response_to_params(
-    response: BetaMessage,
-) -> list[BetaContentBlockParam]:
-    res: list[BetaContentBlockParam] = []
-    for block in response.content:
-        if isinstance(block, BetaTextBlock):
-            if block.text:
-                res.append(BetaTextBlockParam(type="text", text=block.text))
-            elif getattr(block, "type", None) == "thinking":
-                # Handle thinking blocks - include signature field
-                thinking_block = {
-                    "type": "thinking",
-                    "thinking": getattr(block, "thinking", None),
-                }
-                if hasattr(block, "signature"):
-                    thinking_block["signature"] = getattr(block, "signature", None)
-                res.append(cast(BetaContentBlockParam, thinking_block))
-        else:
-            # Handle tool use blocks normally
-            res.append(cast(BetaToolUseBlockParam, block.model_dump()))
-    return res
-
-
 def _inject_prompt_caching(
     messages: list[BetaMessageParam],
 ):
@@ -437,39 +475,55 @@ def _inject_prompt_caching(
                 break
 
 
-def _make_api_tool_result(
+def _make_tool_result_segment(
     result: ToolResult, tool_use_id: str
-) -> BetaToolResultBlockParam:
-    """Convert an agent ToolResult to an API ToolResultBlockParam."""
-    tool_result_content: list[BetaTextBlockParam | BetaImageBlockParam] | str = []
-    is_error = False
+) -> ToolResultSegment:
+    """Convert an agent ToolResult to a provider-agnostic ToolResultSegment."""
+    images: list[dict[str, Any]] = []
+    if result.base64_image:
+        images.append(
+            {
+                "type": "base64",
+                "media_type": "image/png",
+                "data": result.base64_image,
+            }
+        )
+
     if result.error:
+        output_text = _maybe_prepend_system_tool_result(result, result.error)
         is_error = True
-        tool_result_content = _maybe_prepend_system_tool_result(result, result.error)
     else:
-        if result.output:
-            tool_result_content.append(
-                {
-                    "type": "text",
-                    "text": _maybe_prepend_system_tool_result(result, result.output),
-                }
-            )
-        if result.base64_image:
-            tool_result_content.append(
-                {
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": "image/png",
-                        "data": result.base64_image,
-                    },
-                }
-            )
+        output_text = (
+            _maybe_prepend_system_tool_result(result, result.output)
+            if result.output
+            else None
+        )
+        is_error = False
+
+    return ToolResultSegment(
+        call_id=tool_use_id,
+        output_text=output_text,
+        images=images,
+        is_error=is_error,
+        system_note=result.system,
+    )
+
+
+def _tool_result_segment_to_beta(
+    segment: ToolResultSegment,
+) -> BetaToolResultBlockParam:
+    content: list[dict[str, Any]] | str = []
+    if segment.output_text:
+        content.append({"type": "text", "text": segment.output_text})
+    for image in segment.images:
+        content.append({"type": "image", "source": image})
+    if not content:
+        content = ""
     return {
         "type": "tool_result",
-        "content": tool_result_content,
-        "tool_use_id": tool_use_id,
-        "is_error": is_error,
+        "tool_use_id": segment.call_id,
+        "content": content,
+        "is_error": segment.is_error,
     }
 
 
@@ -477,3 +531,85 @@ def _maybe_prepend_system_tool_result(result: ToolResult, result_text: str):
     if result.system:
         result_text = f"<system>{result.system}</system>\n{result_text}"
     return result_text
+
+
+def _segment_to_beta_block(segment: MessageSegment) -> dict[str, Any] | None:
+    if isinstance(segment, TextSegment):
+        return {"type": "text", "text": segment.text}
+    if isinstance(segment, ThinkingSegment):
+        block: dict[str, Any] = {"type": "thinking", "thinking": segment.content}
+        if segment.signature:
+            block["signature"] = segment.signature
+        return block
+    if isinstance(segment, ToolCallSegment):
+        return {
+            "type": "tool_use",
+            "name": segment.tool_name,
+            "input": segment.arguments,
+            "id": segment.call_id,
+        }
+    if isinstance(segment, ToolResultSegment):
+        return _tool_result_segment_to_beta(segment)
+    return None
+
+
+def _conversation_message_to_beta(
+    message: ConversationMessage,
+) -> BetaMessageParam:
+    content: list[dict[str, Any]] = []
+    for segment in message.segments:
+        block = _segment_to_beta_block(segment)
+        if block is not None:
+            content.append(block)
+    return {"role": message.role, "content": content}
+
+
+def _beta_messages_to_transcript(
+    messages: list[BetaMessageParam],
+) -> ConversationTranscript:
+    transcript = ConversationTranscript()
+    for message in messages:
+        conv_message = ConversationMessage(role=message["role"])
+        content = message.get("content", [])
+        for item in content:
+            block_type = item.get("type")
+            if block_type == "text":
+                conv_message.append(TextSegment(text=item.get("text", "")))
+            elif block_type == "thinking":
+                conv_message.append(
+                    ThinkingSegment(
+                        content=item.get("thinking", ""),
+                        signature=item.get("signature"),
+                    )
+                )
+            elif block_type == "tool_use":
+                conv_message.append(
+                    ToolCallSegment(
+                        tool_name=item.get("name", ""),
+                        arguments=item.get("input", {}) or {},
+                        call_id=item.get("id", ""),
+                    )
+                )
+            elif block_type == "tool_result":
+                content_field = item.get("content", [])
+                text_parts: list[str] = []
+                images: list[dict[str, Any]] = []
+                if isinstance(content_field, str):
+                    text_parts.append(content_field)
+                elif isinstance(content_field, list):
+                    for entry in content_field:
+                        entry_type = entry.get("type")
+                        if entry_type == "text":
+                            text_parts.append(entry.get("text", ""))
+                        elif entry_type == "image":
+                            images.append(entry.get("source", {}))
+                conv_message.append(
+                    ToolResultSegment(
+                        call_id=item.get("tool_use_id", ""),
+                        output_text="\n".join(text_parts) if text_parts else None,
+                        images=images,
+                        is_error=item.get("is_error", False),
+                    )
+                )
+        transcript.add_message(conv_message)
+    return transcript

@@ -1,0 +1,193 @@
+%PDF-1.4
+%ÿÿÿÿ
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 4436 >>
+stream
+BT
+/F1 18 Tf
+72 720 Td
+(Computer-Use Demo Multi-Provider Refactor Plan) Tj
+/F1 12 Tf
+0 -22 Td
+(Prepared for: MCPWorld maintainers) Tj
+/F1 12 Tf
+0 -18 Td
+(Purpose: Establish a two-page implementation plan to add provider-agnostic LLM support.) Tj
+/F1 12 Tf
+0 -16 Td
+() Tj
+/F1 14 Tf
+0 -24 Td
+(Section 1: Strategic Objectives) Tj
+/F1 12 Tf
+0 -16 Td
+(1. Decouple Anthropic-specific logic from the agent sampling loop while preserving existing behaviour.) Tj
+/F1 12 Tf
+0 -16 Td
+(2. Support drop-in OpenAI-compatible local endpoints \(e.g., Ollama, vLLM, HF TGI\).) Tj
+/F1 12 Tf
+0 -16 Td
+(3. Maintain Streamlit UX, evaluator hooks, and tooling fidelity during the transition.) Tj
+/F1 12 Tf
+0 -18 Td
+() Tj
+/F1 14 Tf
+0 -24 Td
+(Section 2: Workstream Breakdown) Tj
+/F1 12 Tf
+0 -18 Td
+(Workstream A - Provider Abstraction Layer \(10-12 hrs\)) Tj
+/F1 12 Tf
+0 -16 Td
+( - Design provider-agnostic message/tool dataclasses and adapters.) Tj
+/F1 12 Tf
+0 -16 Td
+( - Refactor sampling_loop to dispatch via provider strategy objects.) Tj
+/F1 12 Tf
+0 -16 Td
+( - Implement Anthropic adapter using current beta.messages flow.) Tj
+/F1 12 Tf
+0 -16 Td
+( - Implement OpenAI-style adapter targeting local hosts; cover error handling.) Tj
+/F1 12 Tf
+0 -18 Td
+(Workstream B - Tool Schema Normalisation \(6-8 hrs\)) Tj
+/F1 12 Tf
+0 -16 Td
+( - Convert BaseAnthropicTool into provider-neutral ToolSpec interface.) Tj
+/F1 12 Tf
+0 -16 Td
+( - Generate provider-specific payloads at call time \(Anthropic betas vs. OpenAI functions\).) Tj
+/F1 12 Tf
+0 -16 Td
+( - Update MCP client to translate tool metadata into the unified schema.) Tj
+/F1 12 Tf
+0 -16 Td
+( - Verify backward compatibility with existing tool versions \(20241022, 20250124\).) Tj
+/F1 12 Tf
+0 -18 Td
+(Workstream C - UX and Config Integration \(4-5 hrs\)) Tj
+/F1 12 Tf
+0 -16 Td
+( - Extend Streamlit sidebar to manage provider selection, local endpoint URL, auth tokens.) Tj
+/F1 12 Tf
+0 -16 Td
+( - Persist provider-specific settings in ~/.computeruse \(avoid Anthropic-only paths\).) Tj
+/F1 12 Tf
+0 -16 Td
+( - Update headless scripts to accept provider flag and propagate through CLI args.) Tj
+/F1 12 Tf
+0 -18 Td
+(Workstream D - Validation and QA \(5-6 hrs\)) Tj
+/F1 12 Tf
+0 -16 Td
+( - Build unit tests for provider adapters, tool translation, and MCP bridge.) Tj
+/F1 12 Tf
+0 -16 Td
+( - Add integration harness running against mocked Anthropic responses and local OpenAI server.) Tj
+/F1 12 Tf
+0 -16 Td
+( - Perform manual regression on Streamlit flow with both providers enabled.) Tj
+/F1 12 Tf
+0 -16 Td
+( - Document fallback plan if local endpoint fails \(graceful error surfacing\).) Tj
+/F1 12 Tf
+0 -18 Td
+() Tj
+/F1 14 Tf
+0 -24 Td
+(Section 3: Dependencies and Risks) Tj
+/F1 12 Tf
+0 -16 Td
+(Dependencies) Tj
+/F1 12 Tf
+0 -16 Td
+( - Access to local LLM runtime \(Ollama or vLLM\) with OpenAI-compatible API.) Tj
+/F1 12 Tf
+0 -16 Td
+( - Test credentials for Anthropic to run regression suite.) Tj
+/F1 12 Tf
+0 -16 Td
+(Risks and Mitigations) Tj
+/F1 12 Tf
+0 -16 Td
+( - Schema drift between providers => maintain adapter conformance tests.) Tj
+/F1 12 Tf
+0 -16 Td
+( - Tool action parity issues => add contract tests for keyboard and mouse actions.) Tj
+/F1 12 Tf
+0 -16 Td
+( - Performance regressions with local models => benchmark key tasks post-integration.) Tj
+/F1 12 Tf
+0 -18 Td
+() Tj
+/F1 14 Tf
+0 -24 Td
+(Section 4: Timeline and Milestones) Tj
+/F1 12 Tf
+0 -16 Td
+(Week 1: Complete Workstream A and scaffold Workstream B \(Milestone: dual-provider sampling loop\).) Tj
+/F1 12 Tf
+0 -16 Td
+(Week 2: Finish Workstreams B and C \(Milestone: Streamlit plus headless flows toggle providers\).) Tj
+/F1 12 Tf
+0 -16 Td
+(Week 3: Execute Workstream D, fix regressions, prepare release notes \(Milestone: QA sign-off\).) Tj
+/F1 12 Tf
+0 -18 Td
+() Tj
+/F1 14 Tf
+0 -24 Td
+(Section 5: Success Criteria) Tj
+/F1 12 Tf
+0 -16 Td
+( - Anthropic and local providers selectable without code changes.) Tj
+/F1 12 Tf
+0 -16 Td
+( - All evaluator tasks pass with both providers.) Tj
+/F1 12 Tf
+0 -16 Td
+( - Documentation updated \(README and Augmented README\) with new setup steps.) Tj
+/F1 12 Tf
+0 -16 Td
+( - Regression suite green; manual smoke runs demonstrate tool parity.) Tj
+/F1 12 Tf
+0 -18 Td
+() Tj
+/F1 12 Tf
+0 -18 Td
+(Estimated Effort) Tj
+/F1 12 Tf
+0 -16 Td
+( - Total delivery window: approximately 25-30 engineering hours over 3 weeks.) Tj
+/F1 12 Tf
+0 -16 Td
+( - Recommended team: 1 primary engineer, optional reviewer for QA milestone.) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000247 00000 n 
+0000004734 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+4804
+%%EOF

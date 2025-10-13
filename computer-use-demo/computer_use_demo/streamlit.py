@@ -39,6 +39,7 @@ PROVIDER_TO_DEFAULT_MODEL_NAME: dict[APIProvider, str] = {
     APIProvider.ANTHROPIC: "claude-3-7-sonnet-20250219",
     APIProvider.BEDROCK: "anthropic.claude-3-5-sonnet-20241022-v2:0",
     APIProvider.VERTEX: "claude-3-5-sonnet-v2@20241022",
+    APIProvider.OPENAI: os.getenv("OPENAI_DEFAULT_MODEL", "gpt-4o"),
 }
 
 
@@ -102,16 +103,17 @@ def setup_state():
     if "messages" not in st.session_state:
         st.session_state.messages = []
     if "api_key" not in st.session_state:
-        # Try to load API key from file first, then environment
+        # Try to load Anthropic API key from file first, then environment
         st.session_state.api_key = load_from_storage("api_key") or os.getenv(
             "ANTHROPIC_API_KEY", ""
         )
     if "provider" not in st.session_state:
-        st.session_state.provider = (
-            os.getenv("API_PROVIDER", "anthropic") or APIProvider.ANTHROPIC
-        )
+        default_provider = os.getenv("API_PROVIDER", APIProvider.ANTHROPIC.value)
+        if default_provider not in [option.value for option in APIProvider]:
+            default_provider = APIProvider.ANTHROPIC.value
+        st.session_state.provider = APIProvider(default_provider)
     if "provider_radio" not in st.session_state:
-        st.session_state.provider_radio = st.session_state.provider
+        st.session_state.provider_radio = st.session_state.provider.value
     if "model" not in st.session_state:
         _reset_model()
     if "auth_validated" not in st.session_state:
@@ -150,6 +152,67 @@ def setup_state():
         st.session_state.evaluator_event_type = None
     if "evaluator_last_update" not in st.session_state:
         st.session_state.evaluator_last_update = 0
+    if "openai_api_key" not in st.session_state:
+        st.session_state.openai_api_key = load_from_storage("openai_api_key") or os.getenv(
+            "OPENAI_API_KEY", ""
+        )
+    if "openai_base_url" not in st.session_state:
+        st.session_state.openai_base_url = os.getenv(
+            "OPENAI_BASE_URL", "https://api.openai.com"
+        )
+    if "openai_endpoint" not in st.session_state:
+        st.session_state.openai_endpoint = os.getenv(
+            "OPENAI_ENDPOINT", "/v1/chat/completions"
+        )
+    if "openai_tool_choice" not in st.session_state:
+        default_tool_choice = os.getenv("OPENAI_TOOL_CHOICE", "auto")
+        if default_tool_choice not in {"auto", "none"}:
+            default_tool_choice = "auto"
+        st.session_state.openai_tool_choice = default_tool_choice
+    if "openai_timeout" not in st.session_state:
+        try:
+            st.session_state.openai_timeout = float(os.getenv("OPENAI_TIMEOUT", "30"))
+        except ValueError:
+            st.session_state.openai_timeout = 30.0
+    if "openai_response_format" not in st.session_state:
+        st.session_state.openai_response_format = os.getenv("OPENAI_RESPONSE_FORMAT", "")
+
+
+def _resolve_provider_api_key() -> str:
+    if st.session_state.provider == APIProvider.OPENAI:
+        return st.session_state.openai_api_key or os.getenv("OPENAI_API_KEY", "")
+    return st.session_state.api_key or os.getenv("ANTHROPIC_API_KEY", "")
+
+
+@contextmanager
+def _apply_provider_environment():
+    if st.session_state.provider != APIProvider.OPENAI:
+        yield
+        return
+
+    overrides = {
+        "OPENAI_API_KEY": _resolve_provider_api_key(),
+        "OPENAI_BASE_URL": st.session_state.openai_base_url,
+        "OPENAI_ENDPOINT": st.session_state.openai_endpoint,
+        "OPENAI_TOOL_CHOICE": st.session_state.openai_tool_choice,
+        "OPENAI_TIMEOUT": str(st.session_state.openai_timeout),
+        "OPENAI_RESPONSE_FORMAT": st.session_state.openai_response_format,
+    }
+    previous: dict[str, str | None] = {}
+    try:
+        for key, value in overrides.items():
+            previous[key] = os.environ.get(key)
+            if value in (None, ""):
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = str(value)
+        yield
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
 def _reset_model():
@@ -186,18 +249,20 @@ async def main():
     with st.sidebar:
 
         def _reset_api_provider():
-            if st.session_state.provider_radio != st.session_state.provider:
+            new_provider = APIProvider(st.session_state.provider_radio)
+            if new_provider != st.session_state.provider:
+                st.session_state.provider = new_provider
+                st.session_state.provider_radio = new_provider.value
                 _reset_model()
-                st.session_state.provider = st.session_state.provider_radio
                 st.session_state.auth_validated = False
 
         provider_options = [option.value for option in APIProvider]
         st.radio(
             "API Provider",
             options=provider_options,
-            key="provider_radio",
-            format_func=lambda x: x.title(),
-            on_change=_reset_api_provider,
+           key="provider_radio",
+           format_func=lambda x: x.title(),
+           on_change=_reset_api_provider,
         )
 
         st.text_input("Model", key="model", on_change=_reset_model_conf)
@@ -208,6 +273,44 @@ async def main():
                 type="password",
                 key="api_key",
                 on_change=lambda: save_to_storage("api_key", st.session_state.api_key),
+            )
+        elif st.session_state.provider == APIProvider.OPENAI:
+            st.text_input(
+                "OpenAI API Key",
+                type="password",
+                key="openai_api_key",
+                value=st.session_state.openai_api_key,
+                on_change=lambda: save_to_storage(
+                    "openai_api_key", st.session_state.openai_api_key
+                ),
+            )
+            st.text_input(
+                "OpenAI Base URL",
+                key="openai_base_url",
+                value=st.session_state.openai_base_url,
+            )
+            st.text_input(
+                "OpenAI Endpoint",
+                key="openai_endpoint",
+                value=st.session_state.openai_endpoint,
+            )
+            st.selectbox(
+                "OpenAI Tool Choice",
+                options=["auto", "none"],
+                key="openai_tool_choice",
+                index=["auto", "none"].index(st.session_state.openai_tool_choice),
+            )
+            st.number_input(
+                "OpenAI Timeout (seconds)",
+                key="openai_timeout",
+                min_value=0.0,
+                step=1.0,
+                value=st.session_state.openai_timeout,
+            )
+            st.text_input(
+                "OpenAI Response Format (JSON string)",
+                key="openai_response_format",
+                value=st.session_state.openai_response_format,
             )
 
         st.number_input(
@@ -354,9 +457,8 @@ async def main():
                 subprocess.run("./start_all.sh", shell=True)  # noqa: ASYNC221
 
     if not st.session_state.auth_validated:
-        if auth_error := validate_auth(
-            st.session_state.provider, st.session_state.api_key
-        ):
+        current_api_key = _resolve_provider_api_key()
+        if auth_error := validate_auth(st.session_state.provider, current_api_key):
             st.warning(f"Please resolve the following auth issue:\n\n{auth_error}")
             return
         else:
@@ -413,30 +515,32 @@ async def main():
             return
 
         with track_sampling_loop():
-            # run the agent sampling loop with the newest message
-            st.session_state.messages = await sampling_loop(
-                system_prompt_suffix=st.session_state.custom_system_prompt,
-                model=st.session_state.model,
-                provider=st.session_state.provider,
-                messages=st.session_state.messages,
-                output_callback=partial(_render_message, Sender.BOT),
-                tool_output_callback=partial(
-                    _tool_output_callback, tool_state=st.session_state.tools
-                ),
-                api_response_callback=partial(
-                    _api_response_callback,
-                    tab=http_logs,
-                    response_state=st.session_state.responses,
-                ),
-                api_key=st.session_state.api_key,
-                only_n_most_recent_images=st.session_state.only_n_most_recent_images,
-                tool_version=st.session_state.tool_version,
-                max_tokens=st.session_state.output_tokens,
-                thinking_budget=st.session_state.thinking_budget
-                if st.session_state.thinking
-                else None,
-                token_efficient_tools_beta=st.session_state.token_efficient_tools_beta,
-            )
+            current_api_key = _resolve_provider_api_key()
+            with _apply_provider_environment():
+                # run the agent sampling loop with the newest message
+                st.session_state.messages = await sampling_loop(
+                    system_prompt_suffix=st.session_state.custom_system_prompt,
+                    model=st.session_state.model,
+                    provider=st.session_state.provider,
+                    messages=st.session_state.messages,
+                    output_callback=partial(_render_message, Sender.BOT),
+                    tool_output_callback=partial(
+                        _tool_output_callback, tool_state=st.session_state.tools
+                    ),
+                    api_response_callback=partial(
+                        _api_response_callback,
+                        tab=http_logs,
+                        response_state=st.session_state.responses,
+                    ),
+                    api_key=current_api_key,
+                    only_n_most_recent_images=st.session_state.only_n_most_recent_images,
+                    tool_version=st.session_state.tool_version,
+                    max_tokens=st.session_state.output_tokens,
+                    thinking_budget=st.session_state.thinking_budget
+                    if st.session_state.thinking
+                    else None,
+                    token_efficient_tools_beta=st.session_state.token_efficient_tools_beta,
+                )
 
 
 def maybe_add_interruption_blocks():
@@ -474,6 +578,13 @@ def validate_auth(provider: APIProvider, api_key: str | None):
     if provider == APIProvider.ANTHROPIC:
         if not api_key:
             return "Enter your Anthropic API key in the sidebar to continue."
+    if provider == APIProvider.OPENAI:
+        if not api_key:
+            return "Enter your OpenAI-compatible API key in the sidebar to continue."
+        if not st.session_state.openai_base_url:
+            return "Provide a base URL for the OpenAI-compatible endpoint."
+        if not st.session_state.openai_endpoint:
+            return "Provide an endpoint path for the OpenAI-compatible server."
     if provider == APIProvider.BEDROCK:
         import boto3
 

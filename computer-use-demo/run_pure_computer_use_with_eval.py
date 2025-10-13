@@ -121,8 +121,11 @@ async def run_agent_loop(args, evaluator: BaseEvaluator): # <-- 接收 evaluator
     """运行 Agent 的主异步循环"""
     global evaluation_finished # 引用全局标志
 
-    # 1. 初始化客户端和工具集 (已移到 main 函数)
-    api_key = args.api_key or os.getenv("ANTHROPIC_API_KEY") # api_key 在 main 中检查
+    provider = args.provider_enum
+    api_key = args.resolved_api_key
+    if not api_key:
+        print("错误: 未提供 API 密钥。")
+        return
 
     tool_version = cast(ToolVersion, args.tool_version)
     tool_group = TOOL_GROUPS_BY_VERSION[tool_version]
@@ -197,7 +200,7 @@ async def run_agent_loop(args, evaluator: BaseEvaluator): # <-- 接收 evaluator
             # 需要传递 evaluator 和 task_id 给内部记录 TOOL 事件
             messages = await sampling_loop(
                 model=args.model,
-                provider=APIProvider.ANTHROPIC,
+                provider=provider,
                 messages=messages,
                 output_callback=headless_output_callback,
                 tool_output_callback=headless_tool_output_callback, # 工具结果打印
@@ -254,8 +257,16 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Run Computer Use Demo Agent Headlessly with Evaluator")
     # Agent 参数
+    provider_choices = [provider.value for provider in APIProvider]
+    parser.add_argument("--provider", type=str, default=APIProvider.ANTHROPIC.value, choices=provider_choices, help="LLM provider to use")
     parser.add_argument("--api_key", type=str, default=None, help="Anthropic API Key (or use ANTHROPIC_API_KEY env var)")
-    parser.add_argument("--model", type=str, default="claude-3-7-sonnet-20250219", help="Anthropic model name")
+    parser.add_argument("--openai_api_key", type=str, default=None, help="OpenAI-compatible API Key (or use OPENAI_API_KEY env var)")
+    parser.add_argument("--openai_base_url", type=str, default=None, help="OpenAI-compatible base URL (default: env OPENAI_BASE_URL or https://api.openai.com)")
+    parser.add_argument("--openai_endpoint", type=str, default=None, help="OpenAI-compatible endpoint path (default: env OPENAI_ENDPOINT or /v1/chat/completions)")
+    parser.add_argument("--openai_tool_choice", type=str, default=None, choices=["auto", "none"], help="OpenAI-compatible tool_choice parameter")
+    parser.add_argument("--openai_timeout", type=float, default=None, help="Timeout in seconds for OpenAI-compatible requests")
+    parser.add_argument("--openai_response_format", type=str, default=None, help="JSON string to pass as response_format for OpenAI-compatible requests")
+    parser.add_argument("--model", type=str, default="claude-3-7-sonnet-20250219", help="Model name for the selected provider")
     parser.add_argument("--tool_version", type=str, default=available_tool_versions[0], choices=available_tool_versions, help="Version of tools to use")
     parser.add_argument("--max_tokens", type=int, default=4096, help="Max tokens for model response")
     parser.add_argument("--system_prompt_suffix", type=str, default="", help="Additional text to append to the system prompt")
@@ -270,10 +281,50 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # 检查 API Key
-    if not (args.api_key or os.getenv("ANTHROPIC_API_KEY")):
-        print("错误: 必须提供 Anthropic API 密钥 (--api_key 或 ANTHROPIC_API_KEY 环境变量)")
-        sys.exit(1)
+    provider_enum = APIProvider(args.provider)
+    args.provider_enum = provider_enum
+
+    if provider_enum == APIProvider.OPENAI:
+        api_key = args.openai_api_key or os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            print("错误: 必须提供 OpenAI 兼容 API 密钥 (--openai_api_key 或 OPENAI_API_KEY 环境变量)")
+            sys.exit(1)
+        base_url = args.openai_base_url or os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
+        endpoint = args.openai_endpoint or os.getenv("OPENAI_ENDPOINT", "/v1/chat/completions")
+        tool_choice = args.openai_tool_choice or os.getenv("OPENAI_TOOL_CHOICE", "auto")
+        if tool_choice not in {"auto", "none"}:
+            tool_choice = "auto"
+        timeout = args.openai_timeout
+        if timeout is None:
+            timeout_env = os.getenv("OPENAI_TIMEOUT")
+            if timeout_env:
+                try:
+                    timeout = float(timeout_env)
+                except ValueError:
+                    timeout = None
+        response_format = args.openai_response_format or os.getenv("OPENAI_RESPONSE_FORMAT", "")
+
+        os.environ["OPENAI_API_KEY"] = api_key
+        os.environ["OPENAI_BASE_URL"] = base_url
+        os.environ["OPENAI_ENDPOINT"] = endpoint
+        os.environ["OPENAI_TOOL_CHOICE"] = tool_choice
+        if timeout is not None:
+            os.environ["OPENAI_TIMEOUT"] = str(timeout)
+        if response_format:
+            os.environ["OPENAI_RESPONSE_FORMAT"] = response_format
+        elif "OPENAI_RESPONSE_FORMAT" in os.environ and not response_format:
+            os.environ.pop("OPENAI_RESPONSE_FORMAT", None)
+
+        if args.model == "claude-3-7-sonnet-20250219":
+            args.model = os.getenv("OPENAI_DEFAULT_MODEL", "gpt-4o")
+
+        args.resolved_api_key = api_key
+    else:
+        api_key = args.api_key or os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            print("错误: 必须提供 Anthropic API 密钥 (--api_key 或 ANTHROPIC_API_KEY 环境变量)")
+            sys.exit(1)
+        args.resolved_api_key = api_key
     
     if not os.getenv("DISPLAY"):
         print("错误: 必须提供DISPLAY环境变量")

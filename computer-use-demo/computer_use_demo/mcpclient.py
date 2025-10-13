@@ -1,6 +1,8 @@
 from typing import Any
 from contextlib import AsyncExitStack
 
+# Provider-agnostic tool specification support
+from computer_use_demo.providers import ToolSpec
 from .tools.base import ToolResult
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -33,7 +35,7 @@ class MCPClient:
         await session.initialize()
         self.sessions.append(session)
 
-    async def list_tools(self) -> list[BetaToolParam]:
+    async def list_tools(self) -> list[ToolSpec]:
         if not self.sessions:
             return []
         tools = []
@@ -41,15 +43,23 @@ class MCPClient:
             response = await session.list_tools()
             tools.extend(response.tools)
         print("\nConnected to server with tools:", [tool.name for tool in tools])
-        tool_params = [
-            BetaToolParam(
+        specs: list[ToolSpec] = []
+        for tool in tools:
+            beta_param = BetaToolParam(
                 name=tool.name,
                 description=tool.description,
-                input_schema=tool.inputSchema
+                input_schema=tool.inputSchema,
             )
-            for tool in tools
-        ]
-        return tool_params
+            specs.append(
+                ToolSpec(
+                    name=tool.name,
+                    description=tool.description or "",
+                    input_schema=tool.inputSchema or {},
+                    tool_type="generic",
+                    metadata={"anthropic_params": beta_param},
+                )
+            )
+        return specs
 
     async def call_tool(self, name: str, tool_input: dict[str, Any]) -> ToolResult:
         if not self.sessions:
