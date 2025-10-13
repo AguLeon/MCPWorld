@@ -115,12 +115,35 @@
 - Resolved API keys stored on the parsed `args` object and passed into the sampling loop; environment variables are synchronised ahead of execution so the adapter receives consistent configuration.
 - Default model auto-switches to `OPENAI_DEFAULT_MODEL`/`gpt-4o` when the provider is OpenAI and the caller leaves the anthropic default unchanged.
 
+**Testing Utilities**
+- Added adapter-focused unit tests (`tests/test_openai_adapter.py`) covering request serialization and tool-call parsing.
+- Updated `tests/loop_test.py` to exercise `sampling_loop` via the provider registry with stub adapters/tool collections, ensuring tool results and callbacks still flow.
+- `python -m pytest` currently blocked in the sandboxed environment (command exits in sandbox); rerun locally or inside project container.
+
 **Current Testing Plan**
 - **Anthropic Regression**: run Streamlit UI and both headless scripts with `--provider anthropic` to confirm previous behaviour (tool usage, evaluator logging, prompt caching) remains intact.
 - **OpenAI Local Smoke Test**: stand up an OpenAI-compatible server (e.g., vLLM, Ollama) and run Streamlit/headless flows with `--provider openai`, iterating through tool-heavy tasks to validate conversions and tool results. Capture API logs to ensure arguments/IDs align with expectations.
 - **Adapter Unit Coverage**: add focused tests for conversation/tool serialization (Anthropic + OpenAI adapters) to guard future changes. Mock HTTP responses for OpenAI adapter to exercise tool_call/response_format parsing.
 - **MCP Integration**: run a task that relies on MCP tools (e.g., VS Code) under both providers to confirm MCP-sourced `ToolSpec` objects work in mixed mode.
 - **Timeout/Error Handling**: simulate network errors or malformed responses for each provider to verify the loop returns gracefully and Streamlit surfaces errors without crashing.
+
+## Local Provider Runtime Notes
+- **vLLM (recommended)**:
+  1. Install via `pip install vllm`; download a model (e.g. `TheBloke/Qwen2.5-7B-Instruct-AWQ`).
+  2. Launch server: `python -m vllm.entrypoints.openai.api_server --model <model> --dtype auto --port 8000`.
+  3. Export `OPENAI_BASE_URL=http://127.0.0.1:8000` (endpoint defaults to `/v1/chat/completions`).
+- **Ollama**:
+  1. Install Ollama inside container, `ollama pull qwen2.5:7b`.
+  2. Start server (`ollama serve`) then set `OPENAI_BASE_URL=http://127.0.0.1:11434` and `OPENAI_ENDPOINT=/v1/chat/completions`.
+- **LM Studio / TGI**: any OpenAI-compatible gateway works; ensure CORS disabled for Streamlit usage.
+- Expose API to container or host by forwarding ports (6080/8501 already in use—pick non-conflicting port).
+- For deterministic testing, keep responses short and disable sampling (`temperature=0` already defaulted).
+
+## Container / Image Considerations
+- Base Dockerfile currently tied to Anthropic SDK; ensure `requirements.txt` includes any new dependencies introduced by OpenAI workflows (none required so far).
+- If baking OpenAI runtime into the DevContainer, add optional services (vLLM, Ollama) and expose environment variables via `.devcontainer/devcontainer.json`.
+- Rebuild image after updating system packages or adding GPU drivers needed by vLLM (CUDA 12.1+ for H100). Use multi-stage build to keep runtime lean.
+- Document launch sequence in `WORKSPACE.md` or README so contributors know how to start the OpenAI backend before running tests.
 
 **Tool Metadata (`computer_use_demo/tools/collection.py`)**
 - Added `to_specs()` to emit provider-neutral `ToolSpec` instances alongside legacy Anthropic payloads.
