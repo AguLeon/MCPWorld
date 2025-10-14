@@ -533,6 +533,7 @@ async def main():
                         response_state=st.session_state.responses,
                     ),
                     api_key=current_api_key,
+                    is_timeout=lambda: False,
                     only_n_most_recent_images=st.session_state.only_n_most_recent_images,
                     tool_version=st.session_state.tool_version,
                     max_tokens=st.session_state.output_tokens,
