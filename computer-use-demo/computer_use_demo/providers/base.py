@@ -27,7 +27,7 @@ class TextSegment(MessageSegment):
         *,
         annotations: Optional[Dict[str, Any]] = None,
     ) -> None:
-        super().__init__(type="text")
+        MessageSegment.__init__(self, type="text")
         self.text = text
         self.annotations = annotations
 
@@ -43,7 +43,7 @@ class ThinkingSegment(MessageSegment):
         *,
         signature: Optional[str] = None,
     ) -> None:
-        super().__init__(type="thinking")
+        MessageSegment.__init__(self, type="thinking")
         self.content = content
         self.signature = signature
 
@@ -61,7 +61,7 @@ class ToolCallSegment(MessageSegment):
         arguments: Dict[str, Any],
         call_id: str,
     ) -> None:
-        super().__init__(type="tool_call")
+        MessageSegment.__init__(self, type="tool_call")
         self.tool_name = tool_name
         self.arguments = arguments
         self.call_id = call_id
@@ -84,7 +84,7 @@ class ToolResultSegment(MessageSegment):
         is_error: bool = False,
         system_note: Optional[str] = None,
     ) -> None:
-        super().__init__(type="tool_result")
+        MessageSegment.__init__(self, type="tool_result")
         self.call_id = call_id
         self.output_text = output_text
         self.images = list(images) if images else []

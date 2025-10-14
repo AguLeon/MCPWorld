@@ -7,7 +7,7 @@ import os
 from collections.abc import Callable
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, cast, Optional, Dict
+from typing import Any, cast, Optional, List, Dict
 import time
 import json
 
@@ -221,11 +221,16 @@ async def sampling_loop(
     """
     Agentic sampling loop for the assistant/tool interaction of computer use.
     """
-    mcp_servers = evaluator.config.get("mcp_servers", [])
+
+    evaluator_config: dict[str, Any] = {}
+    if evaluator is not None and getattr(evaluator, "config", None):
+        evaluator_config = dict(evaluator.config)
+
+    mcp_servers = evaluator_config.get("mcp_servers", [])
     mcp_client = MCPClient()
     try:
         tool_group = TOOL_GROUPS_BY_VERSION[tool_version]
-        exec_mode = evaluator.config.get("exec_mode", "mixed")
+        exec_mode = evaluator_config.get("exec_mode", "mixed")
         if exec_mode == "api":
             for tool in list(tool_group.tools):
                 if "computer" in tool.name:
