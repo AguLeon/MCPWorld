@@ -8,8 +8,6 @@ from enum import StrEnum
 from typing import Any, Optional, cast
 
 import httpx
-from local_llm_client.local_llm_client import LocalLLMClient
-
 from anthropic import (
     Anthropic,
     AnthropicBedrock,
@@ -29,6 +27,7 @@ from anthropic.types.beta import (
     BetaToolResultBlockParam,
     BetaToolUseBlockParam,
 )
+from local_llm_client.local_llm_client import LocalLLMClient
 
 from .mcpclient import MCPClient
 from .system_prompt import (
@@ -193,7 +192,7 @@ async def sampling_loop(
                 client = LocalLLMClient(
                     base_url="http://localhost:11434/v1",
                     api_key="dummy",
-                    model="llama3",
+                    model="tinyllama",
                 )
                 # Disable features not supported by most local LLMs
                 enable_prompt_caching = False
@@ -234,15 +233,17 @@ async def sampling_loop(
             # `response = client.messages.create(...)` instead.
             try:
                 if provider == APIProvider.LOCAL:
-                    response = client.beta_messages_create(
-                        max_tokens=max_tokens,
+                    response = client.beta_messages_create(  # pyright: ignore
                         messages=messages,
-                        model=model,
-                        system=[system],
-                        tools=tool_collection.to_params(),
+                        system_prompt=system,
+                        tools=all_tool_list,
+                        max_tokens=max_tokens,
+                        temperature=0.0,
                     )
+
+                    response = client._parse_ollama_response(response)  # pyright: ignore
                     # Create mock request/response for callback
-                    api_response_callback(None, None, None)
+                    api_response_callback(None, response, None)
                 else:
                     raw_response = client.beta.messages.with_raw_response.create(
                         max_tokens=max_tokens,

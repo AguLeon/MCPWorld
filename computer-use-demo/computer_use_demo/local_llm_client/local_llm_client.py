@@ -2,13 +2,16 @@ import json
 from dataclasses import dataclass
 
 import httpx
-
-from anthropic import APIError
 from anthropic.types.beta import (
+    BetaMessage,
     BetaMessageParam,
+    BetaTextBlock,
+    BetaTextBlockParam,
+    BetaToolUnionParam,
+    BetaUsage,
 )
 
-from ..system_prompt import SYSTEM_PROMPT
+# from ..system_prompt import SYSTEM_PROMPT
 
 
 @dataclass
@@ -18,9 +21,9 @@ class LocalLLMClient:
     Works with Ollama, LM Studio, vLLM, llama.cpp, etc.
     """
 
-    base_url: str = "http://localhost:11434/v1"
+    base_url: str = "http://localhost:11434"
     api_key: str = "dummy"
-    model: str = "llama3"
+    model: str = "tinyllama"
     client: httpx.Client = httpx.Client(timeout=300.0)
 
     def __post_init__(self):
@@ -88,58 +91,58 @@ class LocalLLMClient:
             )
         return openai_tools
 
-    def beta_messages_create(
-        self,
-        max_tokens: int,
-        messages: list[BetaMessageParam],
-        model: str,
-        system: list,
-        tools: list[dict],
-        **kwargs,
-    ):
-        """
-        Mimics Anthropic's beta.messages.create API but calls local LLM.
-        """
-        # Extract system prompt
-        system_prompt = (
-            system[0]["text"]
-            if system and isinstance(system[0], dict)
-            else SYSTEM_PROMPT
-        )
-
-        # Convert messages and tools
-        openai_messages = self._convert_messages_to_openai(messages, system_prompt)
-        openai_tools = self._convert_tools_to_openai(tools) if tools else None
-
-        # Build request payload
-        payload = {
-            "model": self.model,
-            "messages": openai_messages,
-            "max_tokens": max_tokens,
-            "temperature": 0.0,
-        }
-
-        if openai_tools:
-            payload["tools"] = openai_tools
-            payload["tool_choice"] = "auto"
-
-        # Make API call
-        try:
-            response = self.client.post(
-                f"{self.base_url}/chat/completions",
-                json=payload,
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-            )
-            response.raise_for_status()
-            result = response.json()
-        except httpx.HTTPError as e:
-            raise APIError(f"Local LLM API error: {e}") from e
-
-        # Convert response to Anthropic format
-        return self._convert_response_to_anthropic(result)
+    # def beta_messages_create(
+    #     self,
+    #     max_tokens: int,
+    #     messages: list[BetaMessageParam],
+    #     model: str,
+    #     system: list,
+    #     tools: list[dict],
+    #     **kwargs,
+    # ):
+    #     """
+    #     Mimics Anthropic's beta.messages.create API but calls local LLM.
+    #     """
+    #     # Extract system prompt
+    #     system_prompt = (
+    #         system[0]["text"]
+    #         if system and isinstance(system[0], dict)
+    #         else SYSTEM_PROMPT
+    #     )
+    #
+    #     # Convert messages and tools
+    #     openai_messages = self._convert_messages_to_openai(messages, system_prompt)
+    #     openai_tools = self._convert_tools_to_openai(tools) if tools else None
+    #
+    #     # Build request payload
+    #     payload = {
+    #         "model": self.model,
+    #         "messages": openai_messages,
+    #         "max_tokens": max_tokens,
+    #         "temperature": 0.0,
+    #     }
+    #
+    #     if openai_tools:
+    #         payload["tools"] = openai_tools
+    #         payload["tool_choice"] = "auto"
+    #
+    #     # Make API call
+    #     try:
+    #         response = self.client.post(
+    #             f"{self.base_url}/chat/completions",
+    #             json=payload,
+    #             headers={
+    #                 "Authorization": f"Bearer {self.api_key}",
+    #                 "Content-Type": "application/json",
+    #             },
+    #         )
+    #         response.raise_for_status()
+    #         result = response.json()
+    #     except httpx.HTTPError as e:
+    #         raise e
+    #
+    #     # Convert response to Anthropic format
+    #     return self._convert_response_to_anthropic(result)
 
     def _convert_response_to_anthropic(self, openai_response: dict):
         """Convert OpenAI response format to Anthropic format."""
@@ -202,3 +205,153 @@ class LocalLLMClient:
             stop_reason = "tool_use"
 
         return MockResponse(mock_content, stop_reason)
+
+    def _convert_messages_to_ollama(
+        self,
+        messages: list[BetaMessageParam],
+    ) -> list[dict]:
+        """Convert Anthropic message format to Ollama format."""
+        ollama_messages = []
+
+        for msg in messages:
+            role = msg["role"]
+            content = msg["content"]
+
+            if isinstance(content, str):
+                ollama_messages.append({"role": role, "content": content})
+            elif isinstance(content, list):
+                # Combine text and image content
+                text_parts = []
+                images = []
+                for block in content:
+                    if isinstance(block, dict):
+                        if block.get("type") == "text":
+                            text_parts.append(block.get("text", ""))
+                        elif block.get("type") == "image":
+                            # Extract base64 image data
+                            source = block.get("source", {})
+                            if source.get("type") == "base64":  # pyright: ignore
+                                images.append(source.get("data", ""))  # pyright: ignore
+                        elif block.get("type") == "tool_result":
+                            # Handle tool results
+                            tool_content = block.get("content", [])
+                            if isinstance(tool_content, str):
+                                text_parts.append(f"Tool result: {tool_content}")
+                            elif isinstance(tool_content, list):
+                                for item in tool_content:
+                                    if (
+                                        isinstance(item, dict)
+                                        and item.get("type") == "text"
+                                    ):
+                                        text_parts.append(
+                                            f"Tool result: {item.get('text', '')}"
+                                        )
+
+                combined_text = "\n".join(text_parts)
+                msg_dict = {"role": role, "content": combined_text}
+                if images:
+                    msg_dict["images"] = images  # pyright: ignore
+                ollama_messages.append(msg_dict)
+
+        return ollama_messages
+
+    def _convert_tools_to_ollama(
+        self, tools: list[dict] | list[BetaToolUnionParam]
+    ) -> list[dict]:
+        """Convert Anthorpic tool format to Ollama Format"""
+        ollama_tools = []
+        for tool in tools:
+            ollama_tool = {
+                "type": "function",
+                "function": {
+                    "name": tool.get("name", ""),
+                    "description": tool.get("description", ""),
+                    "parameters": tool.get("input_schema", {}),
+                },
+            }
+            ollama_tools.append(ollama_tool)
+
+        return ollama_tools
+
+    def beta_messages_create(
+        self,
+        messages: list[BetaMessageParam],
+        system_prompt: str | BetaTextBlockParam,
+        tools: list[dict] | list[BetaToolUnionParam],
+        max_tokens: int = 4096,
+        temperature: float = 0.0,
+    ) -> dict:
+        """Create message using Ollama API"""
+        ollama_messages = self._convert_messages_to_ollama(messages)
+
+        # Add system prompt
+        if system_prompt:
+            ollama_messages.insert(0, {"role": "system", "content": system_prompt})
+
+        payload = {
+            "model": self.model,
+            "messages": ollama_messages,
+            "stream": False,
+            "options": {
+                "temperature": temperature,
+                "num_predict": max_tokens,
+            },
+        }
+
+        # Add tools if provided (note: tool support varies by model)
+        # Tool Support varies by model
+        if tools:
+            payload["tools"] = self._convert_tools_to_ollama(tools)
+
+        # Request to Ollama
+        response = self.client.post(
+            f"{self.base_url}/api/chat",
+            json=payload,
+        )
+
+        response.raise_for_status()
+
+        return response.json()
+
+    def _parse_ollama_response(self, response: dict) -> BetaMessage:
+        """Ollama Response to Anthorpic BetaMessage format"""
+        message = response.get("message", {})
+        content_text = message.get("content", "")
+        tool_calls = message.get("tool_calls", [])
+
+        content_blocks = []
+
+        # Text Content
+        if content_text:
+            content_blocks.append(BetaTextBlock(type="text", text=content_text))
+
+        # Tool Calls
+        for tool_call in tool_calls:
+            function = tool_call.get("function", {})
+            content_blocks.append(
+                {
+                    "type": "tool_use",
+                    "id": tool_call.get("id", f"tool_{len(content_blocks)}"),
+                    "name": function.get("name", ""),
+                    "input": function.get("arguments", {}),
+                }
+            )
+
+        mock_output = BetaMessage(
+            id=response.get("created_at", ""),
+            type="message",
+            role="assistant",
+            content=content_blocks,
+            model=response.get("model", self.model),
+            stop_reason="end_turn" if not tool_calls else "tool_use",
+            usage=BetaUsage(
+                input_tokens=response.get("prompt_eval_count", 0),
+                output_tokens=response.get("eval_count", 0),
+            ),
+        )
+
+        return mock_output
+
+    def close(self):
+        """Close HTTPX client"""
+        self.client.close()
