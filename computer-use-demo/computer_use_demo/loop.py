@@ -27,7 +27,7 @@ from anthropic.types.beta import (
     BetaToolResultBlockParam,
     BetaToolUseBlockParam,
 )
-from local_llm_client.local_llm_client import LocalLLMClient
+from .local_llm_client.local_llm_client import LocalLLMClient
 
 from .mcpclient import MCPClient
 from .system_prompt import (
@@ -148,11 +148,15 @@ async def sampling_loop(
     """
     Agentic sampling loop for the assistant/tool interaction of computer use.
     """
-    mcp_servers = evaluator.config.get("mcp_servers", [])
+    mcp_servers = []
+    if evaluator:
+        mcp_servers = evaluator.config.get("mcp_servers", [])
     mcp_client = MCPClient()
     try:
         tool_group = TOOL_GROUPS_BY_VERSION[tool_version]
-        exec_mode = evaluator.config.get("exec_mode", "mixed")
+        exec_mode = "mixed"
+        if evaluator:
+            exec_mode = evaluator.config.get("exec_mode", "mixed")
         if exec_mode == "api":
             for tool in tool_group.tools:
                 if "computer" in tool.name:
@@ -190,13 +194,13 @@ async def sampling_loop(
             image_truncation_threshold = only_n_most_recent_images or 0
             if provider == APIProvider.LOCAL:
                 client = LocalLLMClient(
-                    base_url="http://localhost:11434/v1",
+                    base_url="http://localhost:11434/",
                     api_key="dummy",
-                    model="tinyllama",
+                    model="qwen3:1.7b",
                 )
                 # Disable features not supported by most local LLMs
                 enable_prompt_caching = False
-                only_n_most_recent_images = 10  # Limit images for local LLMs
+                # only_n_most_recent_images = 10  # Limit images for local LLMs
             elif provider == APIProvider.ANTHROPIC:
                 client = Anthropic(api_key=api_key, max_retries=4)
                 enable_prompt_caching = True
