@@ -2,6 +2,7 @@
 Entrypoint for streamlit, see https://docs.streamlit.io/
 """
 
+from evaluator.core.base_evaluator import BaseEvaluator, CallbackEventData
 import asyncio
 import base64
 import os
@@ -260,36 +261,49 @@ async def main():
                 key="evaluator_task_id",
                 help="Enter task ID in format 'category/task_id', e.g. 'telegram/task01_search'",
             )
-            
+
             st.text_input(
                 "Application Path",
                 key="evaluator_app_path",
                 help="Full path to the application executable (e.g., /workspace/PC-Canary/apps/tdesktop/out/Debug/Telegram)",
             )
-            
+
             # 添加启动/停止按钮
             col1, col2 = st.columns(2)
             with col1:
-                start_button = st.button("Start Evaluator", 
-                                        disabled=st.session_state.evaluator_started,
-                                        type="primary" if not st.session_state.evaluator_started else "secondary")
+                start_button = st.button(
+                    "Start Evaluator",
+                    disabled=st.session_state.evaluator_started,
+                    type="primary"
+                    if not st.session_state.evaluator_started
+                    else "secondary",
+                )
             with col2:
-                stop_button = st.button("Stop Evaluator", 
-                                       disabled=not st.session_state.evaluator_started,
-                                       type="primary" if st.session_state.evaluator_started else "secondary")
-            
+                stop_button = st.button(
+                    "Stop Evaluator",
+                    disabled=not st.session_state.evaluator_started,
+                    type="primary"
+                    if st.session_state.evaluator_started
+                    else "secondary",
+                )
+
             # 显示当前状态
             if st.session_state.evaluator_started:
                 st.success("Evaluator is running")
                 if st.session_state.evaluator_instance:
-                    task_id = f"{st.session_state.evaluator_instance.task_category}/{st.session_state.evaluator_instance.task_id}"
+                    task_id = f"{st.session_state.evaluator_instance.task_category}/{
+                        st.session_state.evaluator_instance.task_id
+                    }"
                     st.info(f"Monitoring task: {task_id}")
             else:
                 st.info("Evaluator is not running")
-            
+
             # 处理按钮点击
             if start_button:
-                if not st.session_state.evaluator_task_id or "/" not in st.session_state.evaluator_task_id:
+                if (
+                    not st.session_state.evaluator_task_id
+                    or "/" not in st.session_state.evaluator_task_id
+                ):
                     st.error("Please enter a valid task ID in format 'category/id'")
                 else:
                     # 启动评估器
@@ -299,25 +313,34 @@ async def main():
                             st.session_state.evaluator_started = True
                             st.session_state.evaluator_task_completed = False
                             st.session_state.evaluator_task_result = None
-                            st.info(f"Evaluator started for task: {st.session_state.evaluator_task_id}")
+                            st.info(
+                                f"Evaluator started for task: {st.session_state.evaluator_task_id}"
+                            )
                             st.rerun()  # 重新运行以更新UI状态
-            
+
             if stop_button and st.session_state.evaluator_instance:
                 with st.spinner("Stopping evaluator..."):
                     stop_evaluator()
-            
+
             if st.session_state.evaluator_instance:
                 st.divider()
                 st.subheader("Evaluator Status")
-                
+
                 # 检查是否有全局状态更新并同步到Streamlit
                 # 显示最后更新时间
-                last_update_time = time.strftime("%H:%M:%S", time.localtime(st.session_state.evaluator_last_update)) if st.session_state.evaluator_last_update > 0 else "未更新"
+                last_update_time = (
+                    time.strftime(
+                        "%H:%M:%S",
+                        time.localtime(st.session_state.evaluator_last_update),
+                    )
+                    if st.session_state.evaluator_last_update > 0
+                    else "未更新"
+                )
                 st.empty().markdown(f"Last update: {last_update_time}")
-                
+
                 evaluator = st.session_state.evaluator_instance
                 st.write(f"**任务:** {evaluator.instruction}")
-                
+
                 # 改进状态显示逻辑
                 if st.session_state.evaluator_task_completed:
                     status = "已完成"
@@ -326,20 +349,20 @@ async def main():
                 else:
                     status = "运行中"
                 st.write(f"**状态:** {status}")
-                
+
                 # 显示任务完成状态
                 if st.session_state.evaluator_task_completed:
                     st.success(f"任务已完成: {st.session_state.evaluator_task_result}")
-                    
+
                     # 显示评估指标
                     if st.session_state.evaluator_metrics:
                         st.subheader("评估指标")
                         st.json(st.session_state.evaluator_metrics)
-                
+
                 # 添加刷新按钮，手动检查状态
                 if st.button("刷新状态", key="refresh_evaluator_status"):
                     # 直接从evaluator获取最新指标
-                    if evaluator and hasattr(evaluator, 'metrics'):
+                    if evaluator and hasattr(evaluator, "metrics"):
                         st.session_state.evaluator_metrics = evaluator.metrics.copy()
                         st.session_state.evaluator_last_update = time.time()
                         st.rerun()
@@ -412,6 +435,9 @@ async def main():
             # we don't have a user message to respond to, exit early
             return
 
+        def is_timeout():
+            return False
+
         with track_sampling_loop():
             # run the agent sampling loop with the newest message
             st.session_state.messages = await sampling_loop(
@@ -431,6 +457,7 @@ async def main():
                 api_key=st.session_state.api_key,
                 only_n_most_recent_images=st.session_state.only_n_most_recent_images,
                 tool_version=st.session_state.tool_version,
+                is_timeout=is_timeout,
                 max_tokens=st.session_state.output_tokens,
                 thinking_budget=st.session_state.thinking_budget
                 if st.session_state.thinking
@@ -554,13 +581,17 @@ def _render_api_response(
         with st.expander(f"Request/Response ({response_id})"):
             newline = "\n\n"
             st.markdown(
-                f"`{request.method} {request.url}`{newline}{newline.join(f'`{k}: {v}`' for k, v in request.headers.items())}"
+                f"`{request.method} {request.url}`{newline}{
+                    newline.join(f'`{k}: {v}`' for k, v in request.headers.items())
+                }"
             )
             st.json(request.read().decode())
             st.markdown("---")
             if isinstance(response, httpx.Response):
                 st.markdown(
-                    f"`{response.status_code}`{newline}{newline.join(f'`{k}: {v}`' for k, v in response.headers.items())}"
+                    f"`{response.status_code}`{newline}{
+                        newline.join(f'`{k}: {v}`' for k, v in response.headers.items())
+                    }"
                 )
                 st.json(response.text)
             else:
@@ -571,7 +602,9 @@ def _render_error(error: Exception):
     if isinstance(error, RateLimitError):
         body = "You have been rate limited."
         if retry_after := error.response.headers.get("retry-after"):
-            body += f" **Retry after {str(timedelta(seconds=int(retry_after)))} (HH:MM:SS).** See our API [documentation](https://docs.anthropic.com/en/api/rate-limits) for more details."
+            body += f" **Retry after {
+                str(timedelta(seconds=int(retry_after)))
+            } (HH:MM:SS).** See our API [documentation](https://docs.anthropic.com/en/api/rate-limits) for more details."
         body += f"\n\n{error.message}"
     else:
         body = str(error)
@@ -615,10 +648,10 @@ def _render_message(
                 thinking_content = message.get("thinking", "")
                 st.markdown(f"[Thinking]\n\n{thinking_content}")
             elif message["type"] == "tool_use":
-                st.code(f'Tool Use: {message["name"]}\nInput: {message["input"]}')
+                st.code(f"Tool Use: {message['name']}\nInput: {message['input']}")
             else:
                 # only expected return types are text and tool_use
-                raise Exception(f'Unexpected response type {message["type"]}')
+                raise Exception(f"Unexpected response type {message['type']}")
         else:
             st.markdown(message)
 
@@ -628,17 +661,14 @@ def initialize_evaluator():
     if not st.session_state.evaluator_enabled or not st.session_state.evaluator_task_id:
         st.session_state.evaluator_instance = None
         return False
-    
+
     # 获取应用路径
     app_path = st.session_state.evaluator_app_path
     # 解析任务ID
     try:
         category, task_id = st.session_state.evaluator_task_id.split("/", 1)
-        task = {
-            "category": category,
-            "id": task_id
-        }
-        
+        task = {"category": category, "id": task_id}
+
         # 导入PC-Canary的评估器
         FILE_ROOT = os.path.dirname(os.path.abspath(__file__))
         PROJECT_ROOT = os.path.dirname(os.path.dirname(FILE_ROOT))
@@ -646,35 +676,37 @@ def initialize_evaluator():
         if os.path.exists(EVALUATOR_PATH) and EVALUATOR_PATH not in sys.path:
             sys.path.append(EVALUATOR_PATH)
         from evaluator.core.base_evaluator import BaseEvaluator
-        
+
         # 创建评估器实例
         log_dir = "logs"
         os.makedirs(log_dir, exist_ok=True)
-        
+
         # 如果已有实例且任务ID不同，先停止现有实例
-        if (st.session_state.evaluator_instance and 
-            (st.session_state.evaluator_instance.task_id != task_id or
-             getattr(st.session_state.evaluator_instance, 'app_path', None) != app_path)):
+        if st.session_state.evaluator_instance and (
+            st.session_state.evaluator_instance.task_id != task_id
+            or getattr(st.session_state.evaluator_instance, "app_path", None)
+            != app_path
+        ):
             st.session_state.evaluator_instance.stop()
-            if hasattr(st.session_state.evaluator_instance, 'stop_app'):
+            if hasattr(st.session_state.evaluator_instance, "stop_app"):
                 st.session_state.evaluator_instance.stop_app()
             st.session_state.evaluator_instance = None
-        
+
         # 只有在实例不存在时才创建新实例
         if not st.session_state.evaluator_instance:
             # 创建新实例
             st.session_state.evaluator_instance = BaseEvaluator(
-                task=task,
-                log_dir=log_dir,
-                app_path=app_path
+                task=task, log_dir=log_dir, app_path=app_path
             )
-            
+
             # 注册回调函数
-            st.session_state.evaluator_instance.register_completion_callback(handle_evaluator_event)
+            st.session_state.evaluator_instance.register_completion_callback(
+                handle_evaluator_event
+            )
             # !!! 重要，st 的实现与多线程的兼容不佳，根据官方文档需要手动配置上下文
             # 保存当前上下文
             current_ctx = get_script_run_ctx()
-            
+
             # 保存原始的 Thread.__init__
             original_thread_init = threading.Thread.__init__
 
@@ -682,17 +714,17 @@ def initialize_evaluator():
             def patched_thread_init(self, *args, **kwargs):
                 original_thread_init(self, *args, **kwargs)
                 add_script_run_ctx(self, current_ctx)
-            
+
             # 应用补丁
             threading.Thread.__init__ = patched_thread_init
-            
+
             try:
                 # 启动评估器
                 success = st.session_state.evaluator_instance.start()
             finally:
                 # 恢复原始 __init__
                 threading.Thread.__init__ = original_thread_init
-                
+
             if success:
                 st.success(f"Evaluator initialized for task: {category}/{task_id}")
                 if app_path:
@@ -703,10 +735,11 @@ def initialize_evaluator():
                 st.session_state.evaluator_instance = None
                 return False
         return True  # 已有实例且无需重启
-        
+
     except Exception as e:
         st.error(f"Failed to initialize evaluator: {str(e)}")
         import traceback
+
         st.code(traceback.format_exc())
         st.session_state.evaluator_instance = None
         return False
@@ -716,7 +749,7 @@ def stop_evaluator():
     """停止评估器并停止轮询线程"""
     if st.session_state.evaluator_instance:
         st.session_state.evaluator_instance.stop()
-        if hasattr(st.session_state.evaluator_instance, 'stop_app'):
+        if hasattr(st.session_state.evaluator_instance, "stop_app"):
             st.session_state.evaluator_instance.stop_app()
         st.session_state.evaluator_instance = None
         st.session_state.evaluator_started = False
@@ -730,38 +763,38 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(FILE_ROOT))
 EVALUATOR_PATH = os.path.join(PROJECT_ROOT, "PC-Canary")
 if os.path.exists(EVALUATOR_PATH) and EVALUATOR_PATH not in sys.path:
     sys.path.append(EVALUATOR_PATH)
-from evaluator.core.base_evaluator import BaseEvaluator, CallbackEventData
-    
+
+
 def handle_evaluator_event(event_data: CallbackEventData, evaluator: BaseEvaluator):
     """处理评估器事件，直接更新Streamlit会话状态"""
     print(f"处理事件: {event_data.event_type} - {event_data.message}")
-    
+
     # 直接更新session_state
     st.session_state.evaluator_event_type = event_data.event_type
     st.session_state.evaluator_last_update = time.time()
-    
+
     if event_data.event_type == "task_completed":
         st.session_state.evaluator_task_completed = True
         st.session_state.evaluator_task_result = event_data.message
         print(f"任务完成: {event_data.message}")
         # 更新指标数据
-        if hasattr(event_data, 'data') and event_data.data:
-            st.session_state.evaluator_metrics = event_data.data.get('metrics', {})
-    
+        if hasattr(event_data, "data") and event_data.data:
+            st.session_state.evaluator_metrics = event_data.data.get("metrics", {})
+
     elif event_data.event_type == "task_error":
         st.session_state.evaluator_task_completed = False
         st.session_state.evaluator_task_result = event_data.message
         print(f"任务错误: {event_data.message}")
-    
+
     elif event_data.event_type == "evaluator_stopped":
         st.session_state.evaluator_task_completed = False
         st.session_state.evaluator_task_result = event_data.message
         print(f"评估器停止: {event_data.message}")
-    
+
     # 尝试触发Streamlit重新渲染
     try:
         evaluator = st.session_state.evaluator_instance
-        if evaluator and hasattr(evaluator, 'metrics'):
+        if evaluator and hasattr(evaluator, "metrics"):
             st.session_state.evaluator_metrics = evaluator.metrics.copy()
             st.session_state.evaluator_last_update = time.time()
             st.rerun()
