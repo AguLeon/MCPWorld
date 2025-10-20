@@ -289,18 +289,37 @@ def _collect_text_segments(
 
 def _tool_result_to_message(segment: ToolResultSegment) -> Dict[str, Any]:
     call_id = segment.call_id or str(uuid4())
-    content_parts: List[str] = []
+    text_parts: List[str] = []
     if segment.system_note:
-        content_parts.append(f"<system>{segment.system_note}</system>")
+        text_parts.append(f"<system>{segment.system_note}</system>")
     if segment.output_text:
-        content_parts.append(segment.output_text)
-    if segment.images:
-        content_parts.append(f"[{len(segment.images)} image(s) omitted]")
-    content = "\n".join(content_parts).strip()
+        text_parts.append(segment.output_text)
+
+    if not segment.images:
+        content = "\n".join(text_parts).strip()
+        return {
+            "role": "tool",
+            "tool_call_id": call_id,
+            "content": content or "",
+        }
+
+    content_blocks: List[Dict[str, Any]] = []
+    text_content = "\n".join(text_parts).strip()
+    if text_content:
+        content_blocks.append({"type": "text", "text": text_content})
+
+    for image in segment.images:
+        block = _image_to_content_block(image)
+        if block:
+            content_blocks.append(block)
+
+    if not content_blocks:
+        content_blocks.append({"type": "text", "text": ""})
+
     return {
         "role": "tool",
         "tool_call_id": call_id,
-        "content": content or "",
+        "content": content_blocks,
     }
 
 
@@ -333,3 +352,28 @@ def _tool_spec_to_openai(spec: ToolSpec) -> Dict[str, Any]:
         },
     }
 
+
+def _image_to_content_block(image: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    if not isinstance(image, dict):
+        return None
+
+    # Anthropic tool results store base64 images as {"type": "base64", "media_type": ..., "data": ...}
+    img_type = image.get("type")
+    if img_type == "base64":
+        media_type = image.get("media_type", "image/png")
+        data = image.get("data")
+        if not data:
+            return None
+        data_uri = f"data:{media_type};base64,{data}"
+        return {"type": "input_image", "image_url": {"url": data_uri}}
+
+    if img_type in {"url", "image_url"}:
+        url = image.get("url") or image.get("href")
+        if url:
+            return {"type": "image_url", "image_url": {"url": url}}
+
+    source = image.get("source")
+    if isinstance(source, dict):
+        return _image_to_content_block(source)
+
+    return None

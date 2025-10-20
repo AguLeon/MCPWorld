@@ -15,8 +15,11 @@
 - [x] Define provider-neutral request/response data structures.
 - [x] Implement provider abstraction layer with Anthropic adapter; plan OpenAI path.
 - [x] Normalise tool serialization across providers (core tools + MCP specs).
-- [ ] Extend Streamlit/headless entry points for provider selection and config.
+- [x] Extend Streamlit/headless entry points for provider selection and config.
+- [x] Add optional Ollama orchestration and model management utilities.
+- [x] Document RAM-backed Ollama workflow for oversized local models.
 - [ ] Expand automated and manual test coverage for new providers.
+- [x] Fix bootstrap API_PROVIDER casing (lowercase) to align with Streamlit expectations.
 
 ## Notes
 - Keep this document updated after each substantive change (commit, configuration update, or design decision).
@@ -165,7 +168,114 @@
 - Detailed the new modules/functions so future contributors understand why large code additions were necessary.
 
 **Open Questions / Next Actions**
-- Implement OpenAI-compatible adapter and associated request/response converters.
-- Update Streamlit sidebar/headless runners to surface provider selection and connection details.
-- Add unit/integration tests covering the new adapter interfaces and message conversion helpers.
-- Validate the registry pattern with additional providers (e.g., locally hosted Qwen via Ollama/vLLM) before broad rollout.
+- Harden OpenAI-compatible adapter: add streaming support (optional), surface usage tokens, and improve error handling/retries.
+- Expand unit/integration tests for adapters and message conversion; add E2E smoke tests with a stub OpenAI server.
+- Document OpenAI-compatible setup paths in README/WORKSPACE; clarify environment variables and defaults.
+- Validate provider registry with additional local providers (vLLM/Ollama) before broader rollout.
+- Automate tmpfs detection/ownership checks in `bootstrap_env` so large-model workflows set `OLLAMA_HOME` safely without manual remount steps.
+
+## Updates (2025-10-17)
+- Implemented OpenAIAdapter (non-streaming) with tool_calls/function_call parsing and provider-neutral segment conversion; integrated into sampling loop and registry.
+- Streamlit and headless entry points now support provider selection and OpenAI-compatible configuration (keys, base_url, endpoint, tool_choice, timeout, response_format).
+- Fixed bootstrap_env `API_PROVIDER` casing bug (now lowercase) so Streamlit picks up the default provider correctly.
+- Confirmed MCP bridge emits provider-neutral `ToolSpec` and interoperates with adapters without further changes.
+
+- Added comprehensive inline comments and docstrings to `tools/bootstrap_env.py` to document sections, functions, and lifecycle, improving maintainability and onboarding.
+- Optional Ollama service orchestration added to `tools/bootstrap_env.py` (`--enable-ollama`, host/port overrides) with readiness checks and automatic Streamlit wiring.
+- New `tools/manage_ollama_model.py` CLI helps pull/swap Ollama models, stop/evict previous ones, and optionally prune unused layers.
+- OpenAI adapter now forwards tool screenshot images as `input_image` blocks so OpenAI-compatible VL models (e.g., Qwen2.5-VL via Ollama) receive base64 screenshots.
+- Extended OpenAI adapter unit tests to cover screenshot serialization (pytest is not available locally, so the suite was not executed here).
+- Added `pytest` to `computer_use_demo/requirements.txt` so freshly built containers include the test runner by default.
+- Added `httpx` to the shared requirements to ensure the OpenAI adapter tests (and runtime HTTP calls) have the dependency available in new containers.
+- Added `pytest-asyncio` so async adapter tests run without extra manual setup.
+- `tools/bootstrap_env.py` now prepares Ollama automatically (no `--addr` dependency) and can invoke `manage_ollama_model.py` to pull the requested model (`--ollama-model`, `--ollama-keep-others`, `--ollama-no-prune`).
+- Improved bootstrap UX: before service startup we now print clear hints (VNC password prompt, service URLs/ports, Streamlit readiness guidance) so users see what the silent prompts mean and where to connect.
+- Streamlit is launched with `STREAMLIT_SERVER_HEADLESS=true` and telemetry disabled so the bootstrapper never blocks on the first-run email prompt.
+- Streamlit model picker now accepts `default`/blank values; the resolved provider default is applied automatically so users don’t have to retype the model name for single-model deployments.
+
+Known gaps after this update:
+- No streaming path in OpenAI adapter yet; usage metrics not surfaced in UI.
+- Tests need broader coverage for OpenAI adapter error cases and E2E loop with tools. Need to rerun pytest once dependencies are installed.
+
+## Debug Log (2025-10-20)
+- Diagnosed Ollama failing with `permission denied` on `/home/agent/.ollama/id_ed25519` when the model cache was pointed at a host-mounted tmpfs. Root ownership on the mount prevented the `agent` user from writing keys.
+- Fix: remount tmpfs on the host with matching UID/GID, then recreate the container symlink so `ollama serve` writes directly into RAM.
+- Host setup:
+  ```bash
+  sudo umount /home/cc/MCPWorld/.ollama_ram  # ignore errors if not mounted
+  sudo rm -rf /home/cc/MCPWorld/.ollama_ram
+  mkdir -p /home/cc/MCPWorld/.ollama_ram
+  sudo mount -t tmpfs -o size=220G,uid=1000,gid=1000 tmpfs /home/cc/MCPWorld/.ollama_ram
+  ls -ld /home/cc/MCPWorld/.ollama_ram
+  ```
+- Container setup (after `docker exec -it mcpworld-aguleon /bin/bash`):
+  ```bash
+  ls -ld /workspace/.ollama_ram
+  rm -rf /home/agent/.ollama
+  ln -s /workspace/.ollama_ram /home/agent/.ollama
+  export OLLAMA_HOME=/workspace/.ollama_ram
+  export OLLAMA_HOST=0.0.0.0
+  export OLLAMA_PORT=11434
+  ollama serve
+  ```
+- Verified resolution once `ls -ld /workspace/.ollama_ram` reported `agent` ownership; subsequent pulls land entirely in tmpfs without touching the 40 GB disk.
+
+## Llama 4 Validation Checklist (2025-10-20)
+- **Host prep**
+  ```bash
+  df -h /home/cc/MCPWorld/.ollama_ram
+  ```
+  Ensure the tmpfs still reports ~220G free before launching a session.
+- **Container prep**
+  ```bash
+  export OLLAMA_HOME=/workspace/.ollama_ram
+  export OLLAMA_HOST=0.0.0.0
+  export OLLAMA_PORT=11434
+  ollama serve  # keep running in foreground pane or tmux window
+  ```
+- **Model load**
+  ```bash
+  docker exec -it mcpworld-aguleon /bin/bash
+  export OLLAMA_HOME=/workspace/.ollama_ram
+  python tools/manage_ollama_model.py \
+    --model llama4:latest \
+    --pull \
+    --evict-others \
+    --prune \
+    --show-status
+  ```
+  Confirm `ollama list` shows only `llama4:latest` and `df -h /workspace/.ollama_ram` reflects the expected footprint.
+- **Streamlit integration**
+  ```bash
+  python tools/bootstrap_env.py start \
+    --enable-ollama \
+    --ollama-model llama4:latest \
+    --provider openai
+  ```
+  Verify the UI detects `OPENAI_BASE_URL=http://127.0.0.1:11434` automatically; override via `--openai-base-url` if running remotely.
+- **Functional smoke tests**
+  - Run a simple tool invocation (`browser_search`) and verify the adapter surfaces `tool_calls` with valid JSON arguments.
+  - Upload a screenshot (via built-in tool pipeline) and confirm Llama 4 receives a `type="input_image"` block; ensure the response references the image content.
+  - Inspect `streamlit.log` for latency spikes or schema mismatches; log `ComputerUse` events for post-run analysis.
+- **Follow-up actions**
+  - Record latency/tok usage to compare against Anthropic/Qwen baselines.
+  - Capture any deviations in the `/v1/chat/completions` schema; update `OpenAIAdapter` parsing if Llama 4 introduces new fields (e.g., `response_format` metadata).
+
+## VNC / noVNC Bring-up Notes (2025-10-20)
+- Initial TurboVNC launches crashed (`gnome-session` trace) which kept port 5904 closed, so noVNC reported “Failed to connect to server”.
+- Confirmed Docker host proxy was listening (`sudo lsof -iTCP:5904`), but container `netstat` showed no listener until TurboVNC stayed up.
+- Fixes applied:
+  - Reset `/tmp/.X11-unix` permissions inside container (`sudo chown root:root /tmp/.X11-unix && sudo chmod 1777 /tmp/.X11-unix`).
+  - Replaced TurboVNC `xstartup.turbovnc` with the project’s minimal script:
+    ```bash
+    sudo tee /opt/TurboVNC/bin/xstartup.turbovnc >/dev/null <<'EOF'
+    #!/bin/sh
+    xsetroot -solid grey
+    xterm -geometry 80x24+10+10 &
+    exec sleep infinity
+    EOF
+    sudo chmod +x /opt/TurboVNC/bin/xstartup.turbovnc
+    ```
+  - Regenerated the VNC password (`/opt/TurboVNC/bin/vncpasswd`) and relaunched `vncserver :4 -geometry 1280x800 -depth 24`.
+  - Verified the listener with `netstat -tuln | grep 5904` inside the container before restarting noVNC (`python tools/bootstrap_env.py stop/start --only novnc`).
+- Result: noVNC now connects reliably; current session exposes a basic `xterm` desktop (need to install a full DE later if desired).

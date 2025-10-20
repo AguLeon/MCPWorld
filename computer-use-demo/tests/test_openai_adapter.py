@@ -8,6 +8,7 @@ from computer_use_demo.providers import (
     ConversationTranscript,
     TextSegment,
     ToolCallSegment,
+    ToolResultSegment,
     ToolSpec,
     ProviderOptions,
 )
@@ -111,9 +112,44 @@ async def test_invoke_and_parse_response(monkeypatch):
     message = adapter.parse_response(provider_response)
 
     assert message.role == "assistant"
-    assert isinstance(message.segments[0], ToolCallSegment)
-    assert message.segments[0].tool_name == "example_tool"
-    assert message.segments[0].arguments == {"arg": 1}
-    assert isinstance(message.segments[1], TextSegment)
-    assert message.segments[1].text == "Hi there!"
+
+    tool_segment = next(seg for seg in message.segments if isinstance(seg, ToolCallSegment))
+    text_segment = next(seg for seg in message.segments if isinstance(seg, TextSegment))
+
+    assert tool_segment.tool_name == "example_tool"
+    assert tool_segment.arguments == {"arg": 1}
+    assert text_segment.text == "Hi there!"
     assert message.metadata["finish_reason"] == "tool_calls"
+
+
+def test_tool_result_with_base64_image():
+    adapter = OpenAIAdapter()
+    transcript = ConversationTranscript()
+    tool_message = ConversationMessage(role="tool")
+    tool_message.append(
+        ToolResultSegment(
+            call_id="call-1",
+            images=[
+                {
+                    "type": "base64",
+                    "media_type": "image/png",
+                    "data": "ZmFrZQ==",
+                }
+            ],
+        )
+    )
+    transcript.add_message(tool_message)
+
+    options = ProviderOptions(
+        model="gpt-4o",
+        extra_options={"api_key": "key"},
+    )
+
+    request = adapter.prepare_request(transcript, [], options)
+    tool_payload = next(msg for msg in request.payload["messages"] if msg["role"] == "tool")
+
+    assert isinstance(tool_payload["content"], list)
+    image_block = tool_payload["content"][0]
+    assert image_block["type"] in {"input_image", "image_url"}
+    url = image_block["image_url"]["url"]
+    assert url.startswith("data:image/png;base64,")
