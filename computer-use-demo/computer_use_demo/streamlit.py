@@ -39,7 +39,7 @@ PROVIDER_TO_DEFAULT_MODEL_NAME: dict[APIProvider, str] = {
     APIProvider.ANTHROPIC: "claude-3-7-sonnet-20250219",
     APIProvider.BEDROCK: "anthropic.claude-3-5-sonnet-20241022-v2:0",
     APIProvider.VERTEX: "claude-3-5-sonnet-v2@20241022",
-    APIProvider.OPENAI: os.getenv("OPENAI_DEFAULT_MODEL", "gpt-4o"),
+    APIProvider.OPENAI: os.getenv("OPENAI_DEFAULT_MODEL", "qwen2.5:7b-instruct"),
 }
 
 
@@ -216,23 +216,31 @@ def _apply_provider_environment():
 
 
 def _reset_model():
-    st.session_state.model = PROVIDER_TO_DEFAULT_MODEL_NAME[
-        cast(APIProvider, st.session_state.provider)
-    ]
+    st.session_state.model = "default"
     _reset_model_conf()
 
 
 def _reset_model_conf():
+    resolved_model = _resolve_model_choice()
+    st.session_state.resolved_model = resolved_model
     model_conf = (
         SONNET_3_7
-        if "3-7" in st.session_state.model
-        else MODEL_TO_MODEL_CONF.get(st.session_state.model, SONNET_3_5_NEW)
+        if "3-7" in resolved_model
+        else MODEL_TO_MODEL_CONF.get(resolved_model, SONNET_3_5_NEW)
     )
     st.session_state.tool_version = model_conf.tool_version
     st.session_state.has_thinking = model_conf.has_thinking
     st.session_state.output_tokens = model_conf.default_output_tokens
     st.session_state.max_output_tokens = model_conf.max_output_tokens
     st.session_state.thinking_budget = int(model_conf.default_output_tokens / 2)
+
+
+def _resolve_model_choice() -> str:
+    raw_model = str(st.session_state.get("model", "") or "").strip()
+    provider = cast(APIProvider, st.session_state.provider)
+    if not raw_model or raw_model.lower() == "default":
+        return PROVIDER_TO_DEFAULT_MODEL_NAME[provider]
+    return raw_model
 
 
 async def main():
@@ -265,7 +273,13 @@ async def main():
            on_change=_reset_api_provider,
         )
 
-        st.text_input("Model", key="model", on_change=_reset_model_conf)
+        st.text_input(
+            "Model",
+            key="model",
+            on_change=_reset_model_conf,
+            placeholder="default",
+        )
+        st.caption(f"Using model: {_resolve_model_choice()}")
 
         if st.session_state.provider == APIProvider.ANTHROPIC:
             st.text_input(
@@ -275,6 +289,8 @@ async def main():
                 on_change=lambda: save_to_storage("api_key", st.session_state.api_key),
             )
         elif st.session_state.provider == APIProvider.OPENAI:
+            if st.session_state.openai_base_url == "https://api.openai.com":
+                st.session_state.openai_base_url = "http://127.0.0.1:11434"
             st.text_input(
                 "OpenAI API Key",
                 type="password",
@@ -518,9 +534,10 @@ async def main():
             current_api_key = _resolve_provider_api_key()
             with _apply_provider_environment():
                 # run the agent sampling loop with the newest message
+                resolved_model = _resolve_model_choice()
                 st.session_state.messages = await sampling_loop(
                     system_prompt_suffix=st.session_state.custom_system_prompt,
-                    model=st.session_state.model,
+                    model=resolved_model,
                     provider=st.session_state.provider,
                     messages=st.session_state.messages,
                     output_callback=partial(_render_message, Sender.BOT),
