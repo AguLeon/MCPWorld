@@ -1,0 +1,24 @@
+name: test_env
+
+services:
+  computer_env:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mcpworld:pc-canary
+    container: mcpworld
+    volumes:
+      - /home/cc/MCPWorld:/workspace
+    ports:
+      - "5900:5900"
+      - "8501:8501"
+      - "6080:6080"
+      - "8080:8080"
+    environment:
+      - ANTHROPIC_API_KEY=dummy_api_key
+      - OPENAI_BASE_URL=http://localhost:11434
+      - OPENAI_ENDPOINT=/v1/chat/completions
+      - OPENAI_TIMEOUT=300
+    command: /bin/bash ./start_service.sh
+    tty: true
+    stdin_open: true
