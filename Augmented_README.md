@@ -52,14 +52,16 @@ git submodule update --init --recursive
 
 Then open the folder in VS Code and select **Reopen in Container**
 
-#### Using Docker-compose
+### Building the environment using Docker-compose
 <details>
 <summary> To automatically build and run the environment and necessary services</summary>
-- Go to /docker directory
+Go to /docker directory
+
 ```bash
 cd ./docker
 ```
-- Compose up the docker-compose file
+Compose up the docker-compose file
+
 ```bash
 docker compose up
 
@@ -67,11 +69,11 @@ docker compose up
 docker compose up -d 
 ```
 
-- This installs VNC, NoVNC, necessary python libraries, and runs ollama server
-- You can enter the docker container to do further works directly
+This installs VNC, NoVNC, necessary python libraries, and runs ollama server
+You can enter the docker container to do further works directly
 </details>
 
-#### Manually building the environment using Dockerfile
+### Manually building the environment using Dockerfile
 <details> 
 <summary>To manually build the image according to the Dockerfile provided by PC-Canary.</summary>
 
