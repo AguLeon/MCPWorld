@@ -1,7 +1,8 @@
 #! /bin/bash
 
-cd ../../PC-Canary/apps/vscode/
+cd /workspace/PC-Canary/apps/vscode/
 
+npm cache clean --force
 yarn run compile
 
 ./scripts/code.sh --no-sandbox
