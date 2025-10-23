@@ -50,7 +50,30 @@ We also want to clone downstream linked repositories to the open-source apps we 
 git submodule update --init --recursive
 ```
 
-Then open the folder in VS Code and select **Reopen in Container**, or manually build the image according to the Dockerfile provided by PC-Canary.
+Then open the folder in VS Code and select **Reopen in Container**
+
+#### Using Docker-compose
+<details>
+<summary> To automatically build and run the environment and necessary services</summary>
+- Go to /docker directory
+```bash
+cd ./docker
+```
+- Compose up the docker-compose file
+```bash
+docker compose up
+
+# To run the process in background
+docker compose up -d 
+```
+
+- This installs VNC, NoVNC, necessary python libraries, and runs ollama server
+- You can enter the docker container to do further works directly
+</details>
+
+#### Manually building the environment using Dockerfile
+<details> 
+<summary>To manually build the image according to the Dockerfile provided by PC-Canary.</summary>
 
 ```bash
 docker build -f PC-Canary/.devcontainer/Dockerfile -t mcpworld:pc-canary .
@@ -67,6 +90,8 @@ docker run --name mcpworld \
   -v /home/cc/MCPWorld:/workspace \
   -it mcpworld:pc-canary /bin/bash
 ```
+
+</details>
 
 ---
 
