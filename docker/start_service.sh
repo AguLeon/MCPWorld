@@ -17,5 +17,8 @@ chmod 600 ~/.vnc/passwd
 # Run the ollama server
 ollama serve >/tmp/ollama.log 2>&1 &
 
+# Install Python Packages
+/home/agent/miniconda3/bin/pip install -r /workspace/computer-use-demo/computer_use_demo/requirements.txt
+
 # Open the bash
 exec bash
