@@ -19,3 +19,12 @@
 - Added `INSTALL_APPS` toggle to `docker/docker-compose.yml` and gated installers in `start_service.sh`; documented usage in `Streamlined_README.md`. No automated tests run.
 - Updated `docker/apps_install_scripts/freetube.sh` to use passworded sudo (default 123) for rpm/dpkg, failing clearly if installation still needs manual authorization, and now drop a sandbox-free wrapper in `/workspace/bin`. Also prepend `/workspace/bin` to PATH in `docker/start_service.sh` and documented the change.
 - Hardened Streamlit API response viewer to tolerate binary bodies (e.g., screenshots) by falling back to size metadata instead of attempting UTF-8 decode.
+- Patched `docker/apps_install_scripts/freetube.sh` so the generated no-sandbox wrapper also rewrites the FreeTube desktop entry and desktop shortcut to point at `/workspace/bin/freetube`, ensuring the GUI launcher inside noVNC works.
+
+## FreeTube
+
+- Ran `python computer-use-demo/run_pure_computer_use_with_eval.py --api_key "$ANTHROPIC_KEY" --model claude-3-7-sonnet-20250219 --task_id FreeTube/task01_search --app_path /workspace/bin/freetube --log_dir logs_computer_use_eval --exec_mode mixed` to verify task01 in the headless runner. This was successful.
+- Confirmed the same task succeeds in API-only mode (`--exec_mode api`), so both interaction profiles are green.
+- Preparing to evaluate FreeTube with the local Ollama-backed LLM using:
+  `python computer-use-demo/run_pure_computer_use_with_eval.py --provider openai --openai_api_key ollama --openai_base_url http://localhost:11434 --openai_endpoint /v1/chat/completions --model qwen2.5:7b-instruct --task_id FreeTube/task01_search --app_path /workspace/bin/freetube --log_dir logs_computer_use_eval --exec_mode api`.
+  Goal is to confirm the API-only flow works end-to-end with the local provider.

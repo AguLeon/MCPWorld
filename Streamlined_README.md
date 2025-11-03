@@ -53,7 +53,24 @@ python3 tools/bootstrap_env.py start --only streamlit
 
 > ✅ Keep this page handy—we’ll append more steps as additional tooling comes online.
 
-## 3. Monitor Headless Runs
+## 3. Initialize the Local LLM
+
+Ollama is already running inside the container; pick the model you need and let the bootstrap script handle loading it.
+
+```bash
+cd ~/MCPWorld
+python3 tools/manage_ollama_model.py \
+  --model qwen2.5:7b-instruct \
+  --pull \
+  --show-status
+```
+
+- Common model targets: `qwen2.5:7b-instruct`, `qwen2.5:14b-instruct`, `llama3.2:3b-instruct`. Pass the model tag that matches your workflow.
+- Swap `--pull` for `--no-pull` if you already have the weights cached; add `--stop-running` or `--evict-others` to free VRAM/disk from other models.
+- The helper lives at `tools/manage_ollama_model.py`; run it any time you need to change models or inspect status (`--show-status` alone prints what’s installed and running).
+- To remove a model entirely, call `ollama rm <model>` (e.g. `ollama rm qwen2.5:7b-instruct`) or invoke the helper with `ollama` directly after stopping the target (`--stop-target`) and pruning (`--prune`).
+
+## 4. Monitor Headless Runs
 
 When you execute tasks directly from the terminal (e.g., `run_pure_computer_use_with_eval.py`), the evaluator logs everything under the session folder you specify (default `logs/`). Tail the live log and inspect the saved metrics afterward:
 
