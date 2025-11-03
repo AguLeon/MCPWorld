@@ -28,9 +28,66 @@ fi
 
 BUILD_DIR="$APP_DIR/out/make"
 
+run_with_sudo() {
+  if command -v sudo >/dev/null 2>&1; then
+    printf '%s\n' "$SUDO_PASSWORD" | sudo -S -- "$@"
+  else
+    "$@"
+  fi
+}
+
+ensure_wrapper() {
+  local real_bin wrapper_target="/workspace/bin/freetube"
+  real_bin="$(readlink -f /usr/bin/freetube 2>/dev/null || true)"
+  if [[ -z "$real_bin" || ! -x "$real_bin" ]]; then
+    real_bin="$(command -v freetube 2>/dev/null || true)"
+  fi
+  if [[ -z "$real_bin" || ! -x "$real_bin" ]]; then
+    return
+  fi
+
+  mkdir -p /workspace/bin
+  cat <<EOF > "$wrapper_target"
+#!/bin/bash
+export ELECTRON_DISABLE_SANDBOX=1
+exec "$real_bin" --no-sandbox "\$@"
+EOF
+  chmod 755 "$wrapper_target"
+
+  local desktop_file=""
+  local candidates=(
+    "/usr/share/applications/io.freetubeapp.FreeTube.desktop"
+    "/usr/share/applications/FreeTube.desktop"
+    "/usr/share/applications/freetube.desktop"
+  )
+  for candidate in "${candidates[@]}"; do
+    if [[ -f "$candidate" ]]; then
+      desktop_file="$candidate"
+      break
+    fi
+  done
+
+  if [[ -n "$desktop_file" ]]; then
+    local exec_line suffix=""
+    exec_line="$(grep -E '^Exec=' "$desktop_file" | head -n1 || true)"
+    if [[ "$exec_line" =~ ^Exec=[^[:space:]]+([[:space:]].*)$ ]]; then
+      suffix="${BASH_REMATCH[1]}"
+    fi
+    run_with_sudo cp "$desktop_file" "${desktop_file}.bak" >/dev/null 2>&1 || true
+    run_with_sudo sed -i "s|^Exec=.*|Exec=$wrapper_target${suffix}|" "$desktop_file"
+
+    local user_home="${HOME:-/workspace}"
+    local desktop_shortcut="$user_home/Desktop/FreeTube.desktop"
+    if [[ -d "$(dirname "$desktop_shortcut")" ]]; then
+      cp "$desktop_file" "$desktop_shortcut" >/dev/null 2>&1 || true
+      chmod +x "$desktop_shortcut" >/dev/null 2>&1 || true
+    fi
+  fi
+}
+
 # Skip rebuild if already available (unless forced), but refresh wrapper.
 if command -v freetube >/dev/null 2>&1 && [[ -z "${FORCE_FREETUBE_INSTALL:-}" ]]; then
-  echo "FreeTube already installed at $(command -v freetube); refreshing wrapper."
+  echo "FreeTube already installed at $(command -v freetube); refreshed launcher."
   ensure_wrapper
   exit 0
 fi
@@ -47,29 +104,6 @@ if ! command -v yarn >/dev/null 2>&1; then
   echo "yarn command not found. Ensure Node/NVM environment is initialized before running this script."
   exit 1
 fi
-
-run_with_sudo() {
-  if command -v sudo >/dev/null 2>&1; then
-    printf '%s\n' "$SUDO_PASSWORD" | sudo -S -- "$@"
-  else
-    "$@"
-  fi
-}
-
-ensure_wrapper() {
-  local real_bin
-  real_bin=$(readlink -f /usr/bin/freetube 2>/dev/null || true)
-  if [[ -n "$real_bin" && -x "$real_bin" ]]; then
-    local wrapper_target="/workspace/bin/freetube"
-    mkdir -p /workspace/bin
-    cat <<EOF > "$wrapper_target"
-#!/bin/bash
-export ELECTRON_DISABLE_SANDBOX=1
-exec "$real_bin" --no-sandbox "\$@"
-EOF
-    chmod 755 "$wrapper_target"
-  fi
-}
 
 pushd "$APP_DIR" >/dev/null
 
