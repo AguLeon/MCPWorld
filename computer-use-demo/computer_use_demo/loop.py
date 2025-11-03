@@ -4,12 +4,12 @@ Agentic sampling loop that calls the Anthropic API and local implementation of a
 
 import platform
 import os
+import time
+import json
 from collections.abc import Callable
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, cast, Optional, List, Dict
-import time
-import json
+from typing import Any, Dict, Optional, cast
 
 import httpx
 from anthropic import APIError, APIResponseValidationError, APIStatusError
@@ -45,6 +45,12 @@ from .tools import (
 from .mcpclient import MCPClient
 
 PROMPT_CACHING_BETA_FLAG = "prompt-caching-2024-07-31"
+MAX_PROVIDER_REFUSALS = 2
+REFUSAL_REMINDER_TEXT = (
+    "Reminder: you have full access to the tools. Use the `computer` tool to inspect "
+    "and interact with the desktop (take a screenshot first if you need context), and "
+    "only finish once the user's request is complete."
+)
 
 try:
     from evaluator.core.base_evaluator import BaseEvaluator
@@ -97,8 +103,11 @@ SYSTEM_PROMPT = f"""<SYSTEM_CAPABILITY>
 </SYSTEM_CAPABILITY>
 
 <IMPORTANT>
+* You have full access to the provided tools. Use them to carry out the user's request instead of refusing. If the task involves the desktop, operate it via the `computer` tool.
+* Before you call any tool, briefly explain in plain language what you are about to do and why. After each tool result, describe what happened and outline the next step.
 * When using Firefox, if a startup wizard appears, IGNORE IT.  Do not even click "skip this step".  Instead, click on the address bar where it says "Search or enter address", and enter the appropriate search term or URL there.
 * If the item you are looking at is a pdf, if after taking a single screenshot of the pdf it seems that you want to read the entire document instead of trying to continue to read the pdf from your screenshots + navigation, determine the URL, use curl to download the pdf, install and use pdftotext to convert it to a text file, and then read that text file directly with your StrReplaceEditTool.
+* Whenever you receive a screenshot or image from a tool result, acknowledge it and briefly describe the key UI elements you observe before continuing with the requested task.
 </IMPORTANT>"""
 
 SYSTEM_PROMPT_API_ONLY = f"""<SYSTEM_CAPABILITY>
@@ -110,7 +119,10 @@ SYSTEM_PROMPT_API_ONLY = f"""<SYSTEM_CAPABILITY>
 </SYSTEM_CAPABILITY>
 
 <IMPORTANT>
+* You have full access to the provided tools. Use them to carry out the user's request instead of refusing. If the task involves the desktop, operate it via the `computer` tool.
+* Before you call any tool, briefly explain in plain language what you are about to do and why. After each tool result, describe what happened and outline the next step.
 * If the item you are looking at is a pdf, if after taking a single screenshot of the pdf it seems that you want to read the entire document instead of trying to continue to read the pdf from your screenshots + navigation, determine the URL, use curl to download the pdf, install and use pdftotext to convert it to a text file, and then read that text file directly with your StrReplaceEditTool.
+* Whenever you receive a screenshot or image from a tool result, acknowledge it and briefly describe the key UI elements you observe before continuing with the requested task.
 </IMPORTANT>"""
 
 SYSTEM_PROMPT_NO_BASH = f"""<SYSTEM_CAPABILITY>
@@ -122,7 +134,10 @@ SYSTEM_PROMPT_NO_BASH = f"""<SYSTEM_CAPABILITY>
 </SYSTEM_CAPABILITY>
 
 <IMPORTANT>
+* You have full access to the provided tools. Use them to carry out the user's request instead of refusing. If the task involves the desktop, operate it via the `computer` tool.
+* Before you call any tool, briefly explain in plain language what you are about to do and why. After each tool result, describe what happened and outline the next step.
 * When using Firefox, if a startup wizard appears, IGNORE IT.  Do not even click "skip this step".  Instead, click on the address bar where it says "Search or enter address", and enter the appropriate search term or URL there.
+* Whenever you receive a screenshot or image from a tool result, acknowledge it and briefly describe the key UI elements you observe before continuing with the requested task.
 </IMPORTANT>"""
 
 SYSTEM_PROMPT_NO_BASH_API_ONLY = f"""<SYSTEM_CAPABILITY>
@@ -130,6 +145,12 @@ SYSTEM_PROMPT_NO_BASH_API_ONLY = f"""<SYSTEM_CAPABILITY>
 * When using your computer function calls, they take a while to run and send back to you.  Where possible/feasible, try to chain multiple of these calls all into one function calls request.
 * The current date is {datetime.today().strftime('%A, %B %-d, %Y')}.
 </SYSTEM_CAPABILITY>
+
+<IMPORTANT>
+* You have full access to the provided tools. Use them to carry out the user's request instead of refusing. If the task involves the desktop, operate it via the `computer` tool.
+* Before you call any tool, briefly explain in plain language what you are about to do and why. After each tool result, describe what happened and outline the next step.
+* Whenever you receive a screenshot or image from a tool result, acknowledge it and briefly describe the key UI elements you observe before continuing with the requested task.
+</IMPORTANT>
 """
 
 
@@ -217,6 +238,7 @@ async def sampling_loop(
     tool_version: ToolVersion,
     thinking_budget: int | None = None,
     token_efficient_tools_beta: bool = False,
+    exec_mode: str = "mixed",
 ):
     """
     Agentic sampling loop for the assistant/tool interaction of computer use.
@@ -230,14 +252,20 @@ async def sampling_loop(
     mcp_client = MCPClient()
     try:
         tool_group = TOOL_GROUPS_BY_VERSION[tool_version]
-        exec_mode = evaluator_config.get("exec_mode", "mixed")
-        if exec_mode == "api":
+        allowed_exec_modes = {"mixed", "gui", "api"}
+        active_exec_mode = exec_mode if exec_mode in allowed_exec_modes else "mixed"
+        evaluator_exec_mode = evaluator_config.get("exec_mode")
+        if isinstance(evaluator_exec_mode, str):
+            candidate = evaluator_exec_mode.lower()
+            if candidate in allowed_exec_modes:
+                active_exec_mode = candidate
+        if active_exec_mode == "api":
             for tool in list(tool_group.tools):
                 if "computer" in tool.name:
                     tool_group.tools.remove(tool)
         tool_collection = ToolCollection(*(ToolCls() for ToolCls in tool_group.tools))
         tool_specs: list[ToolSpec] = tool_collection.to_specs()
-        if exec_mode in ["mixed", "api"]:
+        if active_exec_mode in ["mixed", "api"]:
             for server in mcp_servers:
                 await mcp_client.connect_to_server(server)
             tool_specs.extend(await mcp_client.list_tools())
@@ -245,12 +273,12 @@ async def sampling_loop(
         if tool_version == "computer_only":
             base_system_prompt = (
                 SYSTEM_PROMPT_NO_BASH_API_ONLY
-                if exec_mode == "api"
+                if active_exec_mode == "api"
                 else SYSTEM_PROMPT_NO_BASH
             )
         else:
             base_system_prompt = (
-                SYSTEM_PROMPT_API_ONLY if exec_mode == "api" else SYSTEM_PROMPT
+                SYSTEM_PROMPT_API_ONLY if active_exec_mode == "api" else SYSTEM_PROMPT
             )
         system_prompt_text = (
             f"{base_system_prompt} {system_prompt_suffix}"
@@ -260,6 +288,7 @@ async def sampling_loop(
         system_block = BetaTextBlockParam(type="text", text=system_prompt_text)
 
         adapter = _PROVIDER_REGISTRY.create(provider.value)
+        refusal_retries = 0
 
         while not is_timeout():
             enable_prompt_caching = provider == APIProvider.ANTHROPIC
@@ -354,10 +383,33 @@ async def sampling_loop(
                 return messages
 
             assistant_message = adapter.parse_response(provider_response)
+            _ensure_explanatory_text(assistant_message)
             assistant_beta = _conversation_message_to_beta(assistant_message)
             messages.append(assistant_beta)
 
             tool_result_segments: list[ToolResultSegment] = []
+            tool_call_segments = [
+                segment
+                for segment in assistant_message.segments
+                if isinstance(segment, ToolCallSegment)
+            ]
+
+            if not tool_call_segments:
+                if _looks_like_refusal(assistant_message) and refusal_retries < MAX_PROVIDER_REFUSALS:
+                    refusal_retries += 1
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": REFUSAL_REMINDER_TEXT},
+                            ],
+                        }
+                    )
+                    continue
+                return messages
+
+            refusal_retries = 0
+
             for segment in assistant_message.segments:
                 beta_block = _segment_to_beta_block(segment)
                 if beta_block is not None:
@@ -404,6 +456,88 @@ async def sampling_loop(
         with open("sample_message_stream.json", "w+") as f:
             json.dump(messages, f)
         await mcp_client.cleanup()
+
+
+def _ensure_explanatory_text(message: ConversationMessage) -> None:
+    """Ensure assistant replies include a natural language explanation before tool calls."""
+    has_text = any(
+        isinstance(segment, TextSegment) and segment.text and segment.text.strip()
+        for segment in message.segments
+    )
+    tool_segments = [
+        segment
+        for segment in message.segments
+        if isinstance(segment, ToolCallSegment)
+    ]
+
+    if has_text or not tool_segments:
+        return
+
+    explanations: list[str] = []
+    for segment in tool_segments:
+        args = segment.arguments or {}
+        if segment.tool_name == "computer":
+            action = args.get("action")
+            coordinate = args.get("coordinate")
+            action_bits: list[str] = []
+            if action:
+                action_bits.append(f"action '{action}'")
+            if isinstance(coordinate, list) and len(coordinate) == 2:
+                action_bits.append(f"coordinate {coordinate}")
+            if args.get("text"):
+                action_bits.append(f"text '{args['text']}'")
+            if args.get("scroll_direction"):
+                action_bits.append(
+                    f"scroll '{args['scroll_direction']}' x{args.get('scroll_amount', 1)}"
+                )
+            details = ", ".join(action_bits) if action_bits else "default parameters"
+            explanations.append(f"Using computer tool with {details}.")
+        elif segment.tool_name == "bash":
+            command = args.get("command")
+            if command:
+                explanations.append(f"Running bash command: {command}")
+            else:
+                explanations.append("Running bash tool without a provided command.")
+        elif segment.tool_name == "str_replace_editor":
+            path = args.get("path")
+            command = args.get("command")
+            if path and command:
+                explanations.append(
+                    f"Using editor tool '{command}' on path {path}."
+                )
+            else:
+                explanations.append("Using editor tool with provided arguments.")
+        else:
+            explanations.append(
+                f"Calling tool '{segment.tool_name}' with arguments {args}."
+            )
+
+    explanation_text = " ".join(explanations).strip()
+    if explanation_text:
+        message.segments.insert(0, TextSegment(text=explanation_text))
+
+
+def _looks_like_refusal(message: ConversationMessage) -> bool:
+    """Heuristic to detect capability/permission refusals in assistant text."""
+    refusal_markers = [
+        "unable to",
+        "not able to",
+        "cannot",
+        "can't",
+        "outside the scope",
+        "lack the ability",
+        "no access to",
+        "no ability to",
+        "i do not have the ability",
+    ]
+    text_parts: list[str] = []
+    for segment in message.segments:
+        if isinstance(segment, TextSegment) and segment.text:
+            text_parts.append(segment.text.lower())
+    if not text_parts:
+        return False
+    combined = " ".join(text_parts)
+    return any(marker in combined for marker in refusal_markers)
 
 
 def _maybe_filter_to_n_most_recent_images(

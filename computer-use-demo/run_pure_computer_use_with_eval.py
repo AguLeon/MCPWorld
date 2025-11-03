@@ -214,7 +214,8 @@ async def run_agent_loop(args, evaluator: BaseEvaluator): # <-- 接收 evaluator
                 is_timeout=is_timeout,
                 only_n_most_recent_images=None,
                 thinking_budget=None,
-                token_efficient_tools_beta=False
+                token_efficient_tools_beta=False,
+                exec_mode=args.exec_mode,
                 # TODO: 尝试让 sampling_loop 返回 usage_info
             )
             # 假设如果 sampling_loop 没抛异常，LLM 调用过程是成功的

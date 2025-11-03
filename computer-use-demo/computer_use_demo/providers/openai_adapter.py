@@ -159,14 +159,22 @@ class OpenAIAdapter(BaseProviderAdapter):
 
         content = message_payload.get("content")
         if isinstance(content, str):
-            if content:
+            tool_segments = _maybe_tool_calls_from_content(content)
+            if tool_segments:
+                segments.extend(tool_segments)
+            elif content:
                 segments.append(TextSegment(text=content))
         elif isinstance(content, list):
             for block in content:
-                if block.get("type") == "text":
+                block_type = block.get("type")
+                if block_type == "text":
                     text = block.get("text", "")
                     if text:
                         segments.append(TextSegment(text=text))
+                elif block_type in {"tool_call", "function"}:
+                    tool_segment = _tool_block_to_segment(block)
+                    if tool_segment:
+                        segments.append(tool_segment)
 
         tool_calls = message_payload.get("tool_calls", [])
         for call in tool_calls or []:
@@ -212,6 +220,63 @@ class OpenAIAdapter(BaseProviderAdapter):
     @property
     def supports_thinking(self) -> bool:
         return False
+
+
+def _maybe_tool_calls_from_content(content: str) -> List[ToolCallSegment]:
+    """Some providers return tool calls as JSON embedded in `message.content`."""
+    content = content.strip()
+    if not content or (content[0] not in "{["):
+        return []
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError:
+        return []
+    if isinstance(data, list):
+        segments: List[ToolCallSegment] = []
+        for item in data:
+            segment = _tool_block_to_segment(item)
+            if segment:
+                segments.append(segment)
+        return segments
+    segment = _tool_block_to_segment(data)
+    return [segment] if segment else []
+
+
+def _tool_block_to_segment(block: Dict[str, Any]) -> Optional[ToolCallSegment]:
+    if not isinstance(block, dict):
+        return None
+    block_type = block.get("type")
+    if block_type not in {"tool_call", "function"}:
+        return None
+
+    tool_payload = block.get("function") if isinstance(block.get("function"), dict) else block
+    tool_name = (
+        block.get("name")
+        or block.get("tool_name")
+        or (tool_payload.get("name") if isinstance(tool_payload, dict) else "")
+        or ""
+    )
+    if not tool_name:
+        inferred = _infer_tool_name(tool_payload if isinstance(tool_payload, dict) else block)
+        tool_name = inferred or ""
+    if not tool_name:
+        return None
+
+    args = block.get("arguments")
+    if args is None:
+        args = block.get("parameters")
+    if args is None and isinstance(tool_payload, dict):
+        args = tool_payload.get("arguments") or tool_payload.get("parameters")
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except json.JSONDecodeError:
+            args = {"raw": args}
+    elif not isinstance(args, dict):
+        args = {}
+
+    call_id = block.get("id") or str(uuid4())
+    return ToolCallSegment(tool_name=tool_name, arguments=args or {}, call_id=call_id)
 
 
 def _transcript_to_openai_messages(
@@ -337,6 +402,28 @@ def _tool_call_to_openai(segment: ToolCallSegment) -> Dict[str, Any]:
             "arguments": arguments_json,
         },
     }
+
+
+def _infer_tool_name(block: Dict[str, Any]) -> Optional[str]:
+    params = {}
+    if isinstance(block, dict):
+        params = block.get("parameters") or block.get("arguments") or {}
+    if isinstance(params, str):
+        try:
+            params = json.loads(params)
+        except json.JSONDecodeError:
+            params = {}
+    if not isinstance(params, dict):
+        return None
+
+    param_keys = {key.lower() for key in params.keys()}
+    if {"action"} & param_keys or {"coordinate", "scroll_amount", "scroll_direction"} & param_keys:
+        return "computer"
+    if "path" in param_keys and "command" in param_keys:
+        return "str_replace_editor"
+    if "command" in param_keys:
+        return "bash"
+    return None
 
 
 def _tool_spec_to_openai(spec: ToolSpec) -> Dict[str, Any]:

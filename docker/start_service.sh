@@ -20,5 +20,29 @@ ollama serve >/tmp/ollama.log 2>&1 &
 # Install Python Packages
 /home/agent/miniconda3/bin/pip install -r /workspace/computer-use-demo/computer_use_demo/requirements.txt
 
+INSTALL_APPS_CSV="${INSTALL_APPS:-}"
+mkdir -p /workspace/bin
+export PATH="/workspace/bin:$PATH"
+should_install() {
+  local app="$1"
+  [[ -z "$INSTALL_APPS_CSV" ]] && return 1
+  IFS=',' read -ra items <<< "$INSTALL_APPS_CSV"
+  for item in "${items[@]}"; do
+    if [[ "${item,,}" == "${app,,}" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+if should_install "freetube"; then
+  bash /workspace/docker/apps_install_scripts/freetube.sh >/tmp/freetube_install.log 2>&1 &
+fi
+if should_install "vscode"; then
+  bash /workspace/docker/apps_install_scripts/vscode.sh >/tmp/vscode_install.log 2>&1 &
+fi
+# Wait for background installers to finish before finishing startup so logs are complete.
+wait
+
 # Open the bash
 exec bash
