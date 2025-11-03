@@ -28,3 +28,6 @@
 - Preparing to evaluate FreeTube with the local Ollama-backed LLM using:
   `python computer-use-demo/run_pure_computer_use_with_eval.py --provider openai --openai_api_key ollama --openai_base_url http://localhost:11434 --openai_endpoint /v1/chat/completions --model qwen2.5:7b-instruct --task_id FreeTube/task01_search --app_path /workspace/bin/freetube --log_dir logs_computer_use_eval --exec_mode api`.
   Goal is to confirm the API-only flow works end-to-end with the local provider.
+- Attempted the subscription benchmark with the same local stack:
+  `python computer-use-demo/run_pure_computer_use_with_eval.py --provider openai --openai_api_key ollama --openai_base_url http://localhost:11434 --openai_endpoint /v1/chat/completions --model qwen2.5:7b-instruct --task_id FreeTube/task02_subscribe --app_path /workspace/bin/freetube --log_dir logs_computer_use_eval --exec_mode api`.
+  The evaluator booted cleanly, but qwen2.5 produced no tool calls, so the task remained incomplete.

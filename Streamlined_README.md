@@ -1,6 +1,6 @@
 # Streamlined Startup Guide
 
-Kick off the MCPWorld environment with the essentials below. Each step explains what the command accomplishes so you can rerun it with confidence.
+Kick off the MCPWorld environment with the essentials below. Each step explains what the command accomplishes so the system can be run with confidence.
 
 ## 1. Start the Docker Workspace
 
@@ -28,7 +28,7 @@ INSTALL_APPS=freetube docker compose up
 docker compose up
 ```
 
-- Supported values today: `freetube`, `vscode` (add more as needed).
+- Supported values today: `freetube`, `vscode` (more are coming).
 - Installers run during container startup; logs land in `/tmp/freetube_install.log` or `/tmp/vscode_install.log` inside the container.
 - If sudo needs a password during install, set `SUDO_PASSWORD` (defaults to `123` inside the dev container).
 - After installation, `/workspace/bin/freetube` overrides the system binary and launches FreeTube with `--no-sandbox` automatically, so the agent can start it without extra flags.
@@ -51,7 +51,6 @@ python3 tools/bootstrap_env.py start --only streamlit
 - `cd ~/MCPWorld`: Return to the project root where the bootstrap script lives.
 - `python3 tools/bootstrap_env.py start --only streamlit`: Launch only the Streamlit UI—everything else (VNC, noVNC, Ollama, etc.) is already running from Docker Compose. Drop `--only streamlit` if you ever need the bootstrapper to manage the full stack instead.
 
-> ✅ Keep this page handy—we’ll append more steps as additional tooling comes online.
 
 ## 3. Initialize the Local LLM
 
