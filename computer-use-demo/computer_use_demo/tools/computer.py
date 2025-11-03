@@ -188,12 +188,13 @@ class BaseComputerTool:
         ):
             if text is not None:
                 raise ToolError(f"text is not accepted for {action}")
-            if coordinate is not None:
-                raise ToolError(f"coordinate is not accepted for {action}")
-
             if action == "screenshot":
+                if coordinate is not None:
+                    raise ToolError("coordinate is not accepted for screenshot")
                 return await self.screenshot()
             elif action == "cursor_position":
+                if coordinate is not None:
+                    raise ToolError("coordinate is not accepted for cursor_position")
                 command_parts = [self.xdotool, "getmouselocation --shell"]
                 result = await self.shell(
                     " ".join(command_parts),
@@ -207,7 +208,15 @@ class BaseComputerTool:
                 )
                 return result.replace(output=f"X={x},Y={y}")
             else:
-                command_parts = [self.xdotool, f"click {CLICK_BUTTONS[action]}"]
+                mouse_move_part = ""
+                if coordinate is not None:
+                    x, y = self.validate_and_get_coordinates(coordinate)
+                    mouse_move_part = f"mousemove --sync {x} {y}"
+
+                command_parts = [self.xdotool]
+                if mouse_move_part:
+                    command_parts.append(mouse_move_part)
+                command_parts.append(f"click {CLICK_BUTTONS[action]}")
                 return await self.shell(" ".join(command_parts))
 
         raise ToolError(f"Invalid action: {action}")
@@ -226,14 +235,27 @@ class BaseComputerTool:
         output_dir.mkdir(parents=True, exist_ok=True)
         path = output_dir / f"screenshot_{uuid4().hex}.png"
 
-        # Try gnome-screenshot first
+        # Try gnome-screenshot first, then scrot, then ImageMagick import/xwd fallback
+        screenshot_cmds = []
         if shutil.which("gnome-screenshot"):
-            screenshot_cmd = f"{self._display_prefix}gnome-screenshot -f {path} -p"
-        else:
-            # Fall back to scrot if gnome-screenshot isn't available
-            screenshot_cmd = f"{self._display_prefix}scrot -p {path}"
+            screenshot_cmds.append(f"{self._display_prefix}gnome-screenshot -f {path} -p")
+        if shutil.which("scrot"):
+            screenshot_cmds.append(f"{self._display_prefix}scrot -p {path}")
+        # ImageMagick 'import' (sometimes bundled with convert)
+        if shutil.which("import"):
+            screenshot_cmds.append(f"{self._display_prefix}import -window root {path}")
+        # xwd + convert pipeline
+        if shutil.which("xwd") and shutil.which("convert"):
+            screenshot_cmds.append(
+                f"{self._display_prefix}bash -lc 'xwd -root -silent | convert xwd:- png:- > {path}'"
+            )
 
-        result = await self.shell(screenshot_cmd, take_screenshot=False)
+        last_result = None
+        for cmd in screenshot_cmds or [f"{self._display_prefix}scrot -p {path}"]:
+            last_result = await self.shell(cmd, take_screenshot=False)
+            if path.exists() and path.stat().st_size > 0:
+                break
+        result = last_result if last_result is not None else ToolResult()
         if self._scaling_enabled:
             x, y = self.scale_coordinates(
                 ScalingSource.COMPUTER, self.width, self.height

@@ -192,6 +192,16 @@
 - Improved bootstrap UX: before service startup we now print clear hints (VNC password prompt, service URLs/ports, Streamlit readiness guidance) so users see what the silent prompts mean and where to connect.
 - Streamlit is launched with `STREAMLIT_SERVER_HEADLESS=true` and telemetry disabled so the bootstrapper never blocks on the first-run email prompt.
 - Streamlit model picker now accepts `default`/blank values; the resolved provider default is applied automatically so users don’t have to retype the model name for single-model deployments.
+- Streamlit OpenAI tool-choice UI includes `required` and a `default` option; leaving it blank lets the loop enforce `required` for localhost endpoints.
+- Sampling loop now injects `_ensure_explanatory_text` so tool-only provider replies yield a short natural-language plan before execution (restores Claude-style narration for OpenAI/Ollama runs).
+- Revised system prompts across exec modes to spell out the “plan then tool” convention and remind non-Anthropic providers they must use the tools instead of refusing tasks.
+- Added refusal auto-retry: when a provider answers with a capability refusal instead of tool calls, the loop injects a reminder user turn and gives the model two more chances before bailing. Keeps Ollama stubbornness from ending the run prematurely.
+- Hardened `computer` tool normalization so OpenAI/Ollama calls with goofy enums (`open`, `click`, `[null, null]` coords) are cleaned up into valid actions/args before execution.
+- Added `_normalize_editor_tool_input` plus Windows-to-Linux path coercion so stray `open`/`C:\...` payloads on `str_replace_editor` become valid edits in the container.
+- OpenAI adapter now infers tool names from bare `{type:\"function\", parameters:{...}}` blocks, recovering tool calls that omit the `name` field entirely.
+- Computer tool now chains multiple screenshot fallbacks (gnome-screenshot, scrot, ImageMagick import, xwd+convert) to maximize reliability across images.
+- Bootstrap now exports `WIDTH`, `HEIGHT`, and `DISPLAY_NUM` to Streamlit so the computer tool binds to the correct X display; `check` also validates `xdotool` and a screenshot tool exist.
+- Relaxed tool-forcing heuristics: OpenAI requests default back to `tool_choice="auto"`, no synthetic screenshot turn is injected, and unsupported `computer` actions surface real errors so the model can recover.
 
 Known gaps after this update:
 - No streaming path in OpenAI adapter yet; usage metrics not surfaced in UI.
@@ -260,6 +270,8 @@ Known gaps after this update:
 - **Follow-up actions**
   - Record latency/tok usage to compare against Anthropic/Qwen baselines.
   - Capture any deviations in the `/v1/chat/completions` schema; update `OpenAIAdapter` parsing if Llama 4 introduces new fields (e.g., `response_format` metadata).
+- Detected Llama 4 returning tool calls as JSON-encoded content blocks rather than `tool_calls` arrays; extended `OpenAIAdapter` to parse embedded `{"type":"function","name":...}` payloads so MCP tool execution still fires.
+- Added system prompt guidance telling models to describe screenshots from tool results before acting, matching Claude-style UX expectations for vision flows.
 
 ## VNC / noVNC Bring-up Notes (2025-10-20)
 - Initial TurboVNC launches crashed (`gnome-session` trace) which kept port 5904 closed, so noVNC reported “Failed to connect to server”.

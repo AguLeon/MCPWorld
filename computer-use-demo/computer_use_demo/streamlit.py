@@ -42,6 +42,24 @@ PROVIDER_TO_DEFAULT_MODEL_NAME: dict[APIProvider, str] = {
     APIProvider.OPENAI: os.getenv("OPENAI_DEFAULT_MODEL", "qwen2.5:7b-instruct"),
 }
 
+# Providers exposed in the Streamlit UI. Keep the enum values unchanged so downstream
+# consumers continue to work, but present a limited set of choices to the user.
+STREAMLIT_PROVIDER_OPTIONS: tuple[APIProvider, ...] = (
+    APIProvider.ANTHROPIC,
+    APIProvider.OPENAI,
+)
+STREAMLIT_PROVIDER_LABELS = {
+    APIProvider.ANTHROPIC.value: "Anthropic",
+    APIProvider.OPENAI.value: "Local",
+}
+
+EXECUTION_MODES: tuple[str, ...] = ("mixed", "gui", "api")
+EXECUTION_MODE_LABELS: dict[str, str] = {
+    "mixed": "Mixed (GUI + MCP)",
+    "gui": "GUI Only",
+    "api": "API Only",
+}
+
 
 @dataclass(kw_only=True, frozen=True)
 class ModelConfig:
@@ -107,13 +125,26 @@ def setup_state():
         st.session_state.api_key = load_from_storage("api_key") or os.getenv(
             "ANTHROPIC_API_KEY", ""
         )
+    allowed_provider_values = [option.value for option in STREAMLIT_PROVIDER_OPTIONS]
     if "provider" not in st.session_state:
         default_provider = os.getenv("API_PROVIDER", APIProvider.ANTHROPIC.value)
-        if default_provider not in [option.value for option in APIProvider]:
+        if default_provider not in allowed_provider_values:
             default_provider = APIProvider.ANTHROPIC.value
         st.session_state.provider = APIProvider(default_provider)
-    if "provider_radio" not in st.session_state:
+    elif st.session_state.provider.value not in allowed_provider_values:
+        st.session_state.provider = APIProvider.ANTHROPIC
+    if (
+        "provider_radio" not in st.session_state
+        or st.session_state.provider_radio not in allowed_provider_values
+    ):
         st.session_state.provider_radio = st.session_state.provider.value
+    if "exec_mode" not in st.session_state:
+        default_exec_mode = os.getenv("EXEC_MODE", "mixed").lower()
+        if default_exec_mode not in EXECUTION_MODES:
+            default_exec_mode = "mixed"
+        st.session_state.exec_mode = default_exec_mode
+    elif st.session_state.exec_mode not in EXECUTION_MODES:
+        st.session_state.exec_mode = "mixed"
     if "model" not in st.session_state:
         _reset_model()
     if "auth_validated" not in st.session_state:
@@ -165,9 +196,10 @@ def setup_state():
             "OPENAI_ENDPOINT", "/v1/chat/completions"
         )
     if "openai_tool_choice" not in st.session_state:
-        default_tool_choice = os.getenv("OPENAI_TOOL_CHOICE", "auto")
-        if default_tool_choice not in {"auto", "none"}:
-            default_tool_choice = "auto"
+        default_tool_choice = os.getenv("OPENAI_TOOL_CHOICE", "")
+        allowed = {"auto", "required", "none", ""}
+        if default_tool_choice not in allowed:
+            default_tool_choice = ""
         st.session_state.openai_tool_choice = default_tool_choice
     if "openai_timeout" not in st.session_state:
         try:
@@ -264,13 +296,20 @@ async def main():
                 _reset_model()
                 st.session_state.auth_validated = False
 
-        provider_options = [option.value for option in APIProvider]
+        provider_options = [option.value for option in STREAMLIT_PROVIDER_OPTIONS]
         st.radio(
             "API Provider",
             options=provider_options,
-           key="provider_radio",
-           format_func=lambda x: x.title(),
-           on_change=_reset_api_provider,
+            key="provider_radio",
+            format_func=lambda value: STREAMLIT_PROVIDER_LABELS.get(value, value.title()),
+            on_change=_reset_api_provider,
+        )
+        st.radio(
+            "Execution Mode",
+            options=EXECUTION_MODES,
+            key="exec_mode",
+            format_func=lambda value: EXECUTION_MODE_LABELS.get(value, value.title()),
+            help="Choose how the agent interacts with the environment: GUI-only, API-only, or a mixed mode that uses both.",
         )
 
         st.text_input(
@@ -310,11 +349,25 @@ async def main():
                 key="openai_endpoint",
                 value=st.session_state.openai_endpoint,
             )
+            # Determine sensible default in UI based on base URL
+            tool_choice_options = ["", "auto", "required", "none"]
+            tool_choice_labels = {
+                "": "default (auto for OpenAI, required for localhost)",
+                "auto": "auto",
+                "required": "required",
+                "none": "none",
+            }
+            # Map current state to option index
+            current_choice = st.session_state.openai_tool_choice
+            if current_choice not in tool_choice_options:
+                current_choice = ""
             st.selectbox(
                 "OpenAI Tool Choice",
-                options=["auto", "none"],
+                options=tool_choice_options,
+                format_func=lambda v: tool_choice_labels[v],
                 key="openai_tool_choice",
-                index=["auto", "none"].index(st.session_state.openai_tool_choice),
+                index=tool_choice_options.index(current_choice),
+                help="Leave as 'default' to auto-pick: 'required' for localhost, 'auto' for hosted endpoints.",
             )
             st.number_input(
                 "OpenAI Timeout (seconds)",
@@ -558,6 +611,7 @@ async def main():
                     if st.session_state.thinking
                     else None,
                     token_efficient_tools_beta=st.session_state.token_efficient_tools_beta,
+                    exec_mode=st.session_state.exec_mode,
                 )
 
 
@@ -685,13 +739,28 @@ def _render_api_response(
             st.markdown(
                 f"`{request.method} {request.url}`{newline}{newline.join(f'`{k}: {v}`' for k, v in request.headers.items())}"
             )
-            st.json(request.read().decode())
+            try:
+                request_body = request.read()
+            except Exception:
+                request_body = b""
+            if isinstance(request_body, (bytes, bytearray)):
+                try:
+                    request_text = request_body.decode("utf-8")
+                except UnicodeDecodeError:
+                    request_text = f"<binary payload: {len(request_body)} bytes>"
+            else:
+                request_text = str(request_body)
+            st.text(request_text)
             st.markdown("---")
             if isinstance(response, httpx.Response):
                 st.markdown(
                     f"`{response.status_code}`{newline}{newline.join(f'`{k}: {v}`' for k, v in response.headers.items())}"
                 )
-                st.json(response.text)
+                try:
+                    response_body = response.text
+                except UnicodeDecodeError:
+                    response_body = f"<binary payload: {len(response.content)} bytes>"
+                st.text(response_body)
             else:
                 st.write(response)
 
@@ -795,7 +864,8 @@ def initialize_evaluator():
             st.session_state.evaluator_instance = BaseEvaluator(
                 task=task,
                 log_dir=log_dir,
-                app_path=app_path
+                app_path=app_path,
+                custom_params={"exec_mode": st.session_state.exec_mode},
             )
             
             # 注册回调函数
@@ -826,11 +896,15 @@ def initialize_evaluator():
                 st.success(f"Evaluator initialized for task: {category}/{task_id}")
                 if app_path:
                     st.info(f"Monitoring application: {app_path}")
+                if isinstance(getattr(st.session_state.evaluator_instance, "config", None), dict):
+                    st.session_state.evaluator_instance.config["exec_mode"] = st.session_state.exec_mode
                 return True
             else:
                 st.error("Failed to start evaluator")
                 st.session_state.evaluator_instance = None
                 return False
+        if isinstance(getattr(st.session_state.evaluator_instance, "config", None), dict):
+            st.session_state.evaluator_instance.config["exec_mode"] = st.session_state.exec_mode
         return True  # 已有实例且无需重启
         
     except Exception as e:
