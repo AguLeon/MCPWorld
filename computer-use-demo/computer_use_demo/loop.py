@@ -250,6 +250,11 @@ async def sampling_loop(
 
     mcp_servers = evaluator_config.get("mcp_servers", [])
     mcp_client = MCPClient()
+    print(
+        f"[DEBUG] sampling_loop init: tool_version={tool_version}, exec_mode={exec_mode}, "
+        f"mcp_servers={mcp_servers}",
+        flush=True,
+    )
     try:
         tool_group = TOOL_GROUPS_BY_VERSION[tool_version]
         allowed_exec_modes = {"mixed", "gui", "api"}
@@ -266,9 +271,17 @@ async def sampling_loop(
         tool_collection = ToolCollection(*(ToolCls() for ToolCls in tool_group.tools))
         tool_specs: list[ToolSpec] = tool_collection.to_specs()
         if active_exec_mode in ["mixed", "api"]:
+            if mcp_servers:
+                print(f"[DEBUG] sampling_loop: connecting to MCP servers: {mcp_servers}", flush=True)
             for server in mcp_servers:
+                print(f"[DEBUG] sampling_loop: connecting via MCP client: {server}", flush=True)
                 await mcp_client.connect_to_server(server)
-            tool_specs.extend(await mcp_client.list_tools())
+            extra_tools = await mcp_client.list_tools()
+            tool_specs.extend(extra_tools)
+            print(
+                f"[DEBUG] sampling_loop: MCP tools added={len(extra_tools)}, total tool_specs={len(tool_specs)}",
+                flush=True,
+            )
 
         if tool_version == "computer_only":
             base_system_prompt = (
@@ -371,8 +384,14 @@ async def sampling_loop(
             )
 
             request = adapter.prepare_request(transcript, tool_specs, options)
+            print(
+                "[DEBUG] sampling_loop: invoking provider "
+                f"{provider.value} model={model} messages={len(messages)}",
+                flush=True,
+            )
             try:
                 provider_response = await adapter.invoke(request)
+                print("[DEBUG] sampling_loop: provider response received", flush=True)
             except (
                 APIStatusError,
                 APIResponseValidationError,
@@ -406,6 +425,7 @@ async def sampling_loop(
                         }
                     )
                     continue
+                print("[DEBUG] sampling_loop: assistant returned no tool calls; exiting loop.", flush=True)
                 return messages
 
             refusal_retries = 0
@@ -453,9 +473,11 @@ async def sampling_loop(
             ]
             messages.append({"role": "user", "content": tool_result_blocks})
     finally:
+        print("[DEBUG] sampling_loop: entering cleanup", flush=True)
         with open("sample_message_stream.json", "w+") as f:
             json.dump(messages, f)
         await mcp_client.cleanup()
+        print("[DEBUG] sampling_loop: cleanup complete", flush=True)
 
 
 def _ensure_explanatory_text(message: ConversationMessage) -> None:
