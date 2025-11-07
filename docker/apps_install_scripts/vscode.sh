@@ -22,9 +22,11 @@ npm install
 echo "Compiling VSCode"
 npm run compile
 
-# Add symbolic link to code-cli
-sudo ln -sf /workspace/PC-Canary/apps/vscode/scripts/code-cli.sh /usr/local/bin/code
-sudo chmod +x /workspace/PC-Canary/apps/vscode/scripts/code-cli.sh
+# Add symbolic links to both locations
+sudo ln -sf /workspace/PC-Canary/apps/vscode/scripts/code.sh /usr/local/bin/code
+sudo mkdir -p /usr/share/code
+sudo ln -sf /workspace/PC-Canary/apps/vscode/scripts/code.sh /usr/share/code/code
+sudo chmod +x /workspace/PC-Canary/apps/vscode/scripts/code.sh
 
 # Run the code (Check if it works)
-code --version
+code --version

@@ -246,12 +246,13 @@ async def run_agent_loop(args, evaluator: BaseEvaluator): # <-- 接收 evaluator
         #        # if "任务完成" in text_content:
         #        #     evaluator.record_event(AgentEvent.AGENT_REPORTED_COMPLETION, ...)
         #        pass
-        if evaluator.hook_manager.evaluate_on_completion:
-            evaluator.hook_manager.trigger_evaluate_on_completion()
 
         turn_count += 1
         time.sleep(1) # 短暂 sleep，避免 CPU 占用过高，并给回调一点时间
 
+    if evaluator.hook_manager.evaluate_on_completion and not evaluation_finished:
+        print("[DEBUG] Triggering evaluate_on_completion hook...", flush=True)
+        evaluator.hook_manager.trigger_evaluate_on_completion()
 # --- 命令行参数解析与主函数 ---
 if __name__ == "__main__":
     available_tool_versions = ["computer_use_20250124", "computer_only", "computer_use_20241022"]
