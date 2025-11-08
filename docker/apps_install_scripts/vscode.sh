@@ -17,8 +17,6 @@ npm cache clean --force
 echo "Installing required packages"
 npm install
 
-# yarn run compile
-
 echo "Compiling VSCode"
 npm run compile
 
@@ -29,4 +27,4 @@ sudo ln -sf /workspace/PC-Canary/apps/vscode/scripts/code.sh /usr/share/code/cod
 sudo chmod +x /workspace/PC-Canary/apps/vscode/scripts/code.sh
 
 # Run the code (Check if it works)
-code --version
+code --version >> /tmp/vscode_install.log 2>&1

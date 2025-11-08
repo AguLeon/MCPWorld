@@ -60,6 +60,88 @@ except ImportError as e:
 evaluation_finished = False
 evaluator_instance_for_signal: Optional[BaseEvaluator] = None # 用于信号处理
 
+# --- Helpers for VSCode evaluator fallback ---
+def _infer_vscode_user_data_dir(evaluator: BaseEvaluator) -> Optional[str]:
+    """Extract --user-data-dir from the app launch args."""
+    args = evaluator.config.get("application_info", {}).get("args", []) or []
+    for arg in args:
+        if isinstance(arg, str) and arg.startswith("--user-data-dir="):
+            return arg.split("=", 1)[1]
+    return None
+
+def attempt_manual_vscode_theme_evaluation(evaluator: BaseEvaluator) -> bool:
+    """
+    When the injected hook fails to report evaluate_on_completion, fall back to reading
+    VSCode's settings.json directly so the handler can still determine success.
+    """
+    user_data_dir = _infer_vscode_user_data_dir(evaluator)
+    if not user_data_dir:
+        print("[Manual Eval] Unable to infer VSCode user-data dir from args; skipping fallback.")
+        return False
+
+    settings_path = os.path.join(user_data_dir, "User", "settings.json")
+    if not os.path.exists(settings_path):
+        print(f"[Manual Eval] VSCode settings file not found: {settings_path}")
+        return False
+
+    try:
+        with open(settings_path, "r", encoding="utf-8") as f:
+            settings_data = json.load(f)
+    except Exception as exc:
+        print(f"[Manual Eval] Failed to read VSCode settings: {exc}")
+        return False
+
+    current_theme = settings_data.get("workbench.colorTheme")
+    if not current_theme:
+        print("[Manual Eval] workbench.colorTheme missing in settings.json.")
+        return False
+
+    expected_theme = evaluator.config.get("task_parameters", {}).get("theme", "")
+    print(f"[Manual Eval] Detected theme: {current_theme}, expected: {expected_theme}")
+
+    manual_message = {
+        "event_type": "evaluate_on_completion",
+        "message": f"任务结束时vscode的主题颜色是{current_theme}",
+        "data": current_theme,
+    }
+
+    try:
+        evaluator._on_message(manual_message, None)  # Invoke handler directly.
+        return True
+    except Exception as exc:
+        print(f"[Manual Eval] Handler invocation failed: {exc}")
+        return False
+
+def ensure_evaluation_completion(evaluator: Optional[BaseEvaluator], *, trigger_hook: bool) -> bool:
+    """
+    Guarantee we either receive the injected evaluate_on_completion event or fall back to manual detection.
+    """
+    global evaluation_finished
+    if (
+        not evaluator
+        or not getattr(evaluator, "hook_manager", None)
+        or not getattr(evaluator.hook_manager, "evaluate_on_completion", False)
+        or evaluation_finished
+    ):
+        return False
+
+    completed_via_hook = False
+    if trigger_hook:
+        print("[DEBUG] Triggering evaluate_on_completion hook...", flush=True)
+        evaluator.hook_manager.trigger_evaluate_on_completion()
+        completed_via_hook = evaluation_finished
+
+    if completed_via_hook:
+        return True
+
+    print("[DEBUG] Hook evaluation did not complete; attempting manual VSCode settings check...", flush=True)
+    manual_success = attempt_manual_vscode_theme_evaluation(evaluator)
+    if manual_success:
+        print("[DEBUG] Manual evaluation completed via VSCode settings.", flush=True)
+    else:
+        print("[DEBUG] Manual evaluation failed or inapplicable.", flush=True)
+    return manual_success
+
 # --- 简单的控制台回调函数 ---
 
 def headless_output_callback(block: BetaContentBlockParam) -> None:
@@ -250,9 +332,7 @@ async def run_agent_loop(args, evaluator: BaseEvaluator): # <-- 接收 evaluator
         turn_count += 1
         time.sleep(1) # 短暂 sleep，避免 CPU 占用过高，并给回调一点时间
 
-    if evaluator.hook_manager.evaluate_on_completion and not evaluation_finished:
-        print("[DEBUG] Triggering evaluate_on_completion hook...", flush=True)
-        evaluator.hook_manager.trigger_evaluate_on_completion()
+    ensure_evaluation_completion(evaluator, trigger_hook=True)
 # --- 命令行参数解析与主函数 ---
 if __name__ == "__main__":
     available_tool_versions = ["computer_use_20250124", "computer_only", "computer_use_20241022"]
@@ -388,6 +468,7 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
     finally:
+        ensure_evaluation_completion(evaluator, trigger_hook=True)
         # 最终停止评估器（如果仍在运行）
         if evaluator and evaluator.is_running:
             print("[*] (Finally) 停止评估器...")
@@ -395,6 +476,7 @@ if __name__ == "__main__":
         if evaluator and hasattr(evaluator, 'stop_app'):
             print("[*] (Finally) 停止关联应用...")
             evaluator.stop_app()
+        ensure_evaluation_completion(evaluator, trigger_hook=False)
 
         # 报告最终结果
         if evaluator:
