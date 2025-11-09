@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 """
-无头 (Headless) 运行 Computer Use Demo Agent 的脚本。
-(已集成 PC-Canary Evaluator - 最小侵入修改版)
-支持多轮对话交互。
+Headless script for running Computer Use Demo Agent.
+(Integrated with PC-Canary Evaluator - Minimal intrusive version)
+Supports multi-turn conversational interaction.
 """
 
 import os
@@ -17,13 +17,13 @@ import json
 import signal
 from typing import List, Dict, Any, Optional, cast
 
-# --- 添加 PC-Canary 路径 (根据你的实际路径修改) ---
+# --- Add PC-Canary path (modify according to your actual path) ---
 PC_CANARY_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'PC-Canary'))
 if PC_CANARY_PATH not in sys.path:
     print(f"Adding PC-Canary path: {PC_CANARY_PATH}")
     sys.path.append(PC_CANARY_PATH)
 
-# --- 导入必要的模块 ---
+# --- Import necessary modules ---
 from anthropic import Anthropic
 from anthropic.types.beta import (
     BetaMessageParam,
@@ -33,7 +33,7 @@ from anthropic.types.beta import (
     BetaToolUseBlockParam,
 )
 
-# 从 computer_use_demo 导入核心组件
+# Import core components from computer_use_demo
 try:
     from computer_use_demo.loop import sampling_loop, SYSTEM_PROMPT, APIProvider
     from computer_use_demo.tools import (
@@ -43,27 +43,27 @@ try:
         ToolVersion,
     )
 except ImportError as e:
-    print(f"错误: 无法导入 computer_use_demo 组件。请确保脚本在正确的环境中运行，或者已将项目添加到 PYTHONPATH。")
-    print(f"原始错误: {e}")
+    print(f"Error: Unable to import computer_use_demo components. Please ensure the script is running in the correct environment or that the project is added to the PYTHONPATH.")
+    print(f"Original error: {e}")
     sys.exit(1)
 
-# --- 导入 Evaluator 相关组件 ---
+# --- Import Evaluator-related components ---
 try:
     from evaluator.core.base_evaluator import BaseEvaluator, CallbackEventData
     from evaluator.core.events import AgentEvent
 except ImportError as e:
-    print(f"错误: 无法导入 PC-Canary Evaluator 组件。请确保 PC-Canary 路径正确并已添加到 PYTHONPATH。")
-    print(f"原始错误: {e}")
+    print(f"Error: Unable to import PC-Canary Evaluator components. Please ensure the PC-Canary path is correct and added to the PYTHONPATH.")
+    print(f"Original error: {e}")
     sys.exit(1)
 
-# --- 全局标志 (用于回调终止循环) ---
+# --- Global flags (used for callback termination of loop) ---
 evaluation_finished = False
-evaluator_instance_for_signal: Optional[BaseEvaluator] = None # 用于信号处理
+evaluator_instance_for_signal: Optional[BaseEvaluator] = None  # For signal handling
 
 
 def ensure_evaluation_completion(evaluator: Optional[BaseEvaluator], *, trigger_hook: bool) -> bool:
     """
-    Guarantee we either receive the injected evaluate_on_completion event or fall back to manual detection.
+    Guarantee that we either receive the injected evaluate_on_completion event or fall back to manual detection.
     """
     global evaluation_finished
     if (
@@ -83,26 +83,26 @@ def ensure_evaluation_completion(evaluator: Optional[BaseEvaluator], *, trigger_
     return completed_via_hook
 
 
-# --- 简单的控制台回调函数 ---
+# --- Simple console callback functions ---
 def headless_output_callback(block: BetaContentBlockParam) -> None:
-    # (保持不变)
+    # (remains unchanged)
     if block['type'] == 'text':
         print(f"\nAssistant: {block['text']}")
     elif block['type'] == 'tool_use':
         print(f"\nAssistant wants to use Tool: {block['name']}")
         print(f"Input: {block['input']}")
     elif block['type'] == 'thinking':
-            thinking_content = getattr(block, 'thinking', '...')
-            print(f"\nAssistant [Thinking]:\n{thinking_content}\n")
+        thinking_content = getattr(block, 'thinking', '...')
+        print(f"\nAssistant [Thinking]:\n{thinking_content}\n")
     else:
-        print(f"\n[未知输出类型]: {block}")
+        print(f"\n[Unknown output type]: {block}")
 
 def headless_tool_output_callback(result: ToolResult, tool_id: str) -> None:
-    # (保持不变，但注意：TOOL_CALL 事件现在由 loop.py 内部记录)
+    # (remains unchanged, but note: TOOL_CALL events are now logged internally in loop.py)
     print(f"\n[Tool Result for ID: {tool_id}]")
     if result.output:
         if result.__class__.__name__ == "CLIResult":
-                print(f"Output:\n```bash\n{result.output}\n```")
+            print(f"Output:\n```bash\n{result.output}\n```")
         else:
             print(f"Output: {result.output}")
     if result.error:
@@ -111,70 +111,70 @@ def headless_tool_output_callback(result: ToolResult, tool_id: str) -> None:
         print("[Screenshot captured (omitted in headless mode)]")
 
 def headless_api_response_callback(request, response, error) -> None:
-    # (保持不变)
+    # (remains unchanged)
     if error:
         print(f"\n[API Error]: {error}")
     pass
 
-# --- Evaluator 回调函数 ---
+# --- Evaluator callback function ---
 def handle_evaluator_event(event_data: CallbackEventData, evaluator: BaseEvaluator):
-    """处理评估器事件的回调函数"""
+    """Callback function to handle evaluator events"""
     print(f"\n[Evaluator Event]: {event_data.event_type} - {event_data.message}")
     global evaluation_finished
     if event_data.event_type in ["task_completed", "task_error"]:
         print(f"Evaluator reported final status: {event_data.event_type}")
         evaluation_finished = True
 
-# --- 信号处理函数 ---
+# --- Signal handling function ---
 def signal_handler(sig, frame):
-    """处理 CTRL+C 信号"""
-    print("\n\n用户中断执行...")
+    """Handle CTRL+C signal"""
+    print("\n\nUser interrupted execution...")
     global evaluator_instance_for_signal
     if evaluator_instance_for_signal and evaluator_instance_for_signal.is_running:
-        print("正在停止评估器...")
-        evaluator_instance_for_signal.stop() # stop() 会处理保存和 TASK_END(stopped)
-        # stop_app() 可能也需要调用，取决于任务
+        print("Stopping evaluator...")
+        evaluator_instance_for_signal.stop()  # stop() handles saving and TASK_END(stopped)
+        # stop_app() may also need to be called, depending on the task
         if hasattr(evaluator_instance_for_signal, 'stop_app'):
-             evaluator_instance_for_signal.stop_app()
+            evaluator_instance_for_signal.stop_app()
     sys.exit(0)
 
-# --- 主执行函数 ---
-async def run_agent_loop(args, evaluator: BaseEvaluator): # <-- 接收 evaluator 实例
-    """运行 Agent 的主异步循环"""
-    global evaluation_finished # 引用全局标志
+# --- Main Execution Function ---
+async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evaluator instance
+    """Run the main asynchronous loop of the Agent"""
+    global evaluation_finished  # Referencing the global flag
 
     provider = args.provider_enum
     api_key = args.resolved_api_key
     if not api_key:
-        print("错误: 未提供 API 密钥。")
+        print("Error: API key not provided.")
         return
 
     tool_version = cast(ToolVersion, args.tool_version)
     tool_group = TOOL_GROUPS_BY_VERSION[tool_version]
     tool_collection = ToolCollection(*(ToolCls() for ToolCls in tool_group.tools))
-    print(f"使用的工具版本: {tool_version}")
+    print(f"Using tool version: {tool_version}")
 
-    # 2. 构建系统提示 (保持不变)
+    # 2. Build the system prompt (remains unchanged)
     system_prompt_text = SYSTEM_PROMPT
     if args.system_prompt_suffix:
         system_prompt_text += " " + args.system_prompt_suffix
-    # 注意：sampling_loop 会处理 system prompt 块
+    # Note: sampling_loop will handle the system prompt block
 
-    # 3. 初始化消息历史
+    # 3. Initialize message history
     messages: List[BetaMessageParam] = []
 
-    # 4. 开始多轮对话循环 (添加 evaluation_finished 条件)
+    # 4. Start the multi-turn conversation loop (add evaluation_finished condition)
     turn_count = 0
-    start_time = time.time() # 记录循环开始时间以备超时检查
-    is_timeout = lambda : args.timeout > 0 and time.time() - start_time > args.timeout
+    start_time = time.time()  # Record the loop start time for timeout checking
+    is_timeout = lambda: args.timeout > 0 and time.time() - start_time > args.timeout
     while (args.max_turns is None or turn_count < args.max_turns) and not evaluation_finished:
-        # 检查超时 (相对于循环开始)
+        # Check for timeout (relative to the loop start)
         if is_timeout():
-            print(f"\n执行超时 ({args.timeout}秒)")
-            break # 让 finally 处理停止
+            print(f"\nExecution timed out ({args.timeout} seconds)")
+            break  # Let finally handle stopping
 
         print("-" * 30)
-        # 获取用户输入
+        # Get user input
         try:
             user_input = ""
             if turn_count == 0:
@@ -182,32 +182,32 @@ async def run_agent_loop(args, evaluator: BaseEvaluator): # <-- 接收 evaluator
                 if default_instr:
                     prompt = f'You (Press Enter for default: "{default_instr}"): '
                     user_input = input(prompt)
-                    if not user_input.strip(): # 如果用户只按了回车或输入空白
+                    if not user_input.strip():  # If user just pressed Enter or input was blank
                         print(f"Using default instruction: {default_instr}")
                         user_input = default_instr
                 else:
-                    # 如果没有默认指令，则正常提示
+                    # If no default instruction, normal prompt
                     user_input = input("You: ")
             else:
-                # 非第一轮，正常提示
+                # For non-first turns, normal prompt
                 user_input = input("You: ")
 
             if user_input.lower() in ["quit", "exit"]:
-                print("用户请求退出。")
-                break # 正常退出循环
+                print("User requested exit.")
+                break  # Exit loop normally
         except EOFError:
-            print("\n检测到 EOF，退出。")
+            print("\nEOF detected, exiting.")
             break
 
-        # 将用户输入添加到消息历史
+        # Add user input to message history
         messages.append({
             "role": "user",
             "content": [{"type": "text", "text": user_input}]
         })
 
-        # --- 事件记录：LLM 调用开始 ---
+        # --- Event recording: LLM call starts ---
         llm_start_time = time.time()
-        model_name_to_record = args.model # 或者尝试从 client 获取
+        model_name_to_record = args.model  # Or try to get it from the client
         evaluator.record_event(AgentEvent.LLM_QUERY_START, {
             'timestamp': llm_start_time,
             'model_name': model_name_to_record
@@ -216,69 +216,70 @@ async def run_agent_loop(args, evaluator: BaseEvaluator): # <-- 接收 evaluator
         print("Assistant thinking...")
         llm_success = False
         llm_error = None
-        usage_info = None # 初始化 usage_info
+        usage_info = None  # Initialize usage_info
         try:
-            # --- 调用核心 sampling_loop ---
-            # 需要传递 evaluator 和 task_id 给内部记录 TOOL 事件
+            # --- Call core sampling_loop ---
+            # Need to pass evaluator and task_id for internal TOOL event recording
             messages = await sampling_loop(
                 model=args.model,
                 provider=provider,
                 messages=messages,
                 output_callback=headless_output_callback,
-                tool_output_callback=headless_tool_output_callback, # 工具结果打印
+                tool_output_callback=headless_tool_output_callback,  # Tool result printing
                 api_response_callback=headless_api_response_callback,
                 api_key=api_key,
                 tool_version=tool_version,
                 max_tokens=args.max_tokens,
                 system_prompt_suffix=args.system_prompt_suffix,
-                evaluator=evaluator,                 # <--- 传递评估器
-                evaluator_task_id=evaluator.task_id, # <--- 传递任务 ID
+                evaluator=evaluator,                # <--- Pass evaluator
+                evaluator_task_id=evaluator.task_id,  # <--- Pass task ID
                 is_timeout=is_timeout,
                 only_n_most_recent_images=None,
                 thinking_budget=None,
                 token_efficient_tools_beta=False,
                 exec_mode=args.exec_mode,
-                # TODO: 尝试让 sampling_loop 返回 usage_info
+                # TODO: Try making sampling_loop return usage_info
             )
-            # 假设如果 sampling_loop 没抛异常，LLM 调用过程是成功的
-            # 但我们没有直接拿到 usage_info
+            # Assume if no exception is thrown in sampling_loop, the LLM call was successful
+            # But we don't directly get usage_info
             llm_success = True
-            # print(f"Debug: messages after loop: {messages}") # 调试用
+            # print(f"Debug: messages after loop: {messages}")  # For debugging
         except Exception as e:
             print(f"\n[Error during agent loop]: {e}")
             llm_error = str(e)
-            # break # 发生错误时退出循环
+            # break  # Exit loop on error
 
-        # --- 事件记录：LLM 调用结束 ---
-        # 暂时无法获取精确 token，记录 None
+        # --- Event recording: LLM call ends ---
+        # Temporarily unable to get exact tokens, record None
         evaluator.record_event(AgentEvent.LLM_QUERY_END, {
             'timestamp': time.time(),
             'status': 'success' if llm_success else 'error',
             'error': llm_error,
-            'prompt_tokens': None, # <-- 缺失
-            'completion_tokens': None, # <-- 缺失
+            'prompt_tokens': None,  # <-- Missing
+            'completion_tokens': None,  # <-- Missing
             'cost': None
         })
 
-        # --- 检查 Agent 是否报告完成 (简单示例，需要根据实际输出调整) ---
+        # --- Check if the Agent reports completion (simple example, needs to be adjusted based on actual output) ---
         # if messages:
         #     last_assistant_message = messages[-1]
         #     if last_assistant_message['role'] == 'assistant':
-        #        # ... 解析 last_assistant_message['content'] ...
-        #        # if "任务完成" in text_content:
+        #        # ... Parse last_assistant_message['content'] ...
+        #        # if "task complete" in text_content:
         #        #     evaluator.record_event(AgentEvent.AGENT_REPORTED_COMPLETION, ...)
         #        pass
 
         turn_count += 1
-        time.sleep(1) # 短暂 sleep，避免 CPU 占用过高，并给回调一点时间
+        time.sleep(1)  # Short sleep to avoid high CPU usage and give callbacks time
 
     ensure_evaluation_completion(evaluator, trigger_hook=True)
-# --- 命令行参数解析与主函数 ---
+
+# --- Command-Line Argument Parsing and Main Function ---
 if __name__ == "__main__":
     available_tool_versions = ["computer_use_20250124", "computer_only", "computer_use_20241022"]
 
     parser = argparse.ArgumentParser(description="Run Computer Use Demo Agent Headlessly with Evaluator")
-    # Agent 参数
+    # Agent Arguments
     provider_choices = [provider.value for provider in APIProvider]
     parser.add_argument("--provider", type=str, default=APIProvider.ANTHROPIC.value, choices=provider_choices, help="LLM provider to use")
     parser.add_argument("--api_key", type=str, default=None, help="Anthropic API Key (or use ANTHROPIC_API_KEY env var)")
@@ -293,7 +294,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_tokens", type=int, default=4096, help="Max tokens for model response")
     parser.add_argument("--system_prompt_suffix", type=str, default="", help="Additional text to append to the system prompt")
     parser.add_argument("--max_turns", type=int, default=10, help="Maximum number of conversation turns (user + assistant, default: 10)")
-    # Evaluator 参数
+    # Evaluator Arguments
     parser.add_argument("--task_id", type=str, required=True, help="PC-Canary Task ID (format: category/id, e.g., computeruse/task01_example)")
     parser.add_argument("--log_dir", type=str, default="logs_computer_use_eval", help="Directory for evaluator logs and results")
     parser.add_argument("--app_path", type=str, default=None, help="Path to specific application if required by the task")
@@ -309,7 +310,7 @@ if __name__ == "__main__":
     if provider_enum == APIProvider.OPENAI:
         api_key = args.openai_api_key or os.getenv("OPENAI_API_KEY")
         if not api_key:
-            print("错误: 必须提供 OpenAI 兼容 API 密钥 (--openai_api_key 或 OPENAI_API_KEY 环境变量)")
+            print("Error: OpenAI-compatible API key must be provided (--openai_api_key or OPENAI_API_KEY environment variable)")
             sys.exit(1)
         base_url = args.openai_base_url or os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
         endpoint = args.openai_endpoint or os.getenv("OPENAI_ENDPOINT", "/v1/chat/completions")
@@ -344,29 +345,29 @@ if __name__ == "__main__":
     else:
         api_key = args.api_key or os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
-            print("错误: 必须提供 Anthropic API 密钥 (--api_key 或 ANTHROPIC_API_KEY 环境变量)")
+            print("Error: Anthropic API key must be provided (--api_key or ANTHROPIC_API_KEY environment variable)")
             sys.exit(1)
         args.resolved_api_key = api_key
     
     if not os.getenv("DISPLAY"):
-        print("错误: 必须提供DISPLAY环境变量")
+        print("Error: DISPLAY environment variable must be provided")
         sys.exit(1)
 
-    # 解析 task_id
+    # Parse task_id
     try:
         category, task_id_part = args.task_id.split('/', 1)
         task_config = {"category": category, "id": task_id_part}
     except ValueError:
-        print("错误: task_id 格式必须是 'category/id'")
+        print("Error: task_id format must be 'category/id'")
         sys.exit(1)
 
-    # 创建日志目录
+    # Create log directory
     os.makedirs(args.log_dir, exist_ok=True)
 
-    # 初始化 Evaluator
-    evaluator: Optional[BaseEvaluator] = None # 明确类型
+    # Initialize Evaluator
+    evaluator: Optional[BaseEvaluator] = None  # Explicit type
     try:
-        print(f"[*] 初始化评估器 (Task: {args.task_id})...")
+        print(f"[*] Initializing evaluator (Task: {args.task_id})...")
         evaluator = BaseEvaluator(
             task=task_config,
             log_dir=args.log_dir,
@@ -374,74 +375,75 @@ if __name__ == "__main__":
             custom_params={"exec_mode": args.exec_mode},
         )
         evaluator.timeout = args.timeout
-        evaluator_instance_for_signal = evaluator # 赋值给全局变量供信号处理
+        evaluator_instance_for_signal = evaluator  # Assign to global variable for signal handling
         evaluator.register_completion_callback(handle_evaluator_event)
     except Exception as e:
-        print(f"初始化评估器失败: {e}")
+        print(f"Failed to initialize evaluator: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
 
-    # 设置信号处理
+    # Set up signal handling
     signal.signal(signal.SIGINT, signal_handler)
 
     try:
-        # 启动评估器
-        print("[*] 启动评估器...")
+        # Start evaluator
+        print("[*] Starting evaluator...")
         if not evaluator.start():
-            print("评估器启动失败！")
+            print("Evaluator failed to start!")
             sys.exit(1)
 
-        # 等待评估器内部初始化 (例如启动应用)
-        wait_time = 2 # 秒
-        print(f"[*] 等待 {wait_time} 秒以确保评估器就绪...")
+        # Wait for internal evaluator initialization (e.g., starting the app)
+        wait_time = 2  # seconds
+        print(f"[*] Waiting {wait_time} seconds to ensure evaluator is ready...")
         time.sleep(wait_time)
 
-        print("[*] 启动 Agent 交互循环...")
-        # 运行主循环
-        asyncio.run(run_agent_loop(args, evaluator)) # 将 evaluator 传入
+        print("[*] Starting Agent interaction loop...")
+        # Run the main loop
+        asyncio.run(run_agent_loop(args, evaluator))  # Pass evaluator in
 
     except KeyboardInterrupt:
-        print("\n主程序被中断。") # 信号处理器会处理停止
+        print("\nMain program interrupted.")  # Signal handler will handle stopping
     except Exception as e:
-        print(f"\n主程序发生未处理错误: {e}")
+        print(f"\nUnhandled error in main program: {e}")
         import traceback
         traceback.print_exc()
     finally:
         ensure_evaluation_completion(evaluator, trigger_hook=True)
-        # 最终停止评估器（如果仍在运行）
+        # Finally stop the evaluator (if still running)
         if evaluator and evaluator.is_running:
-            print("[*] (Finally) 停止评估器...")
+            print("[*] (Finally) Stopping evaluator...")
             evaluator.stop()
         if evaluator and hasattr(evaluator, 'stop_app'):
-            print("[*] (Finally) 停止关联应用...")
+            print("[*] (Finally) Stopping associated app...")
             evaluator.stop_app()
         ensure_evaluation_completion(evaluator, trigger_hook=False)
 
-        # 报告最终结果
+        # Report final results
         if evaluator:
-             print("\n" + "="*30 + " 评估结果 " + "="*30)
-             final_results = evaluator.result_collector.get_results(evaluator.task_id)
-             computed_metrics = final_results.get('computed_metrics', {})
-             final_status = computed_metrics.get('task_completion_status', {})
+            print("\n" + "=" * 30 + " Evaluation Results " + "=" * 30)
+            final_results = evaluator.result_collector.get_results(evaluator.task_id)
+            computed_metrics = final_results.get('computed_metrics', {})
+            final_status = computed_metrics.get('task_completion_status', {})
 
-             print("最终计算指标:")
-             if computed_metrics:
-                 for key, value in computed_metrics.items():
-                     try:
-                         value_str = json.dumps(value, ensure_ascii=False, indent=2) if isinstance(value, (dict, list)) else str(value)
-                     except TypeError:
-                         value_str = str(value) # Fallback for non-serializable types
-                     print(f"  {key}: {value_str}")
-             else:
-                 print("  未能计算任何指标。")
+            print("Final Computed Metrics:")
+            if computed_metrics:
+                for key, value in computed_metrics.items():
+                    try:
+                        value_str = json.dumps(value, ensure_ascii=False, indent=2) if isinstance(value, (dict, list)) else str(value)
+                    except TypeError:
+                        value_str = str(value)  # Fallback for non-serializable types
+                    print(f"  {key}: {value_str}")
+            else:
+                print("  No computed metrics available.")
 
-             print(f"\n最终任务状态: {final_status.get('status', '未知')}")
-             if final_status.get('reason'):
-                 print(f"原因: {final_status.get('reason')}")
+            print(f"\nFinal Task Status: {final_status.get('status', 'Unknown')}")
+            if final_status.get('reason'):
+                print(f"Reason: {final_status.get('reason')}")
 
-             # 结果文件路径通常在 evaluator.stop() -> save_results() 中打印
-             # result_file = evaluator.save_results() # 不需要重复保存
+            # Result file path is usually printed in evaluator.stop() -> save_results()
+            # result_file = evaluator.save_results()  # No need to save again
 
-        print("="*72)
-        print("脚本执行完毕。")
+        print("=" * 72)
+        print("Script execution complete.")
+
