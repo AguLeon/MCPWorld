@@ -214,3 +214,265 @@
 - File permissions matter - agent user cannot access /root/
 - Environment variables (DISPLAY, XAUTHORITY) are critical for X11 apps
 - Excessive debug changes can introduce regressions - keep fixes minimal
+
+---
+
+## 11/09 Work Session: Testing and Debugging API-Only Mode
+
+### Session Goals
+- Test VSCode task execution with the refined command structure
+- Debug and fix any issues with the Computer Use + Evaluator flow
+- Document all major challenges, fixes, and tests performed
+
+### Test Command Being Used
+```bash
+python3 /workspace/computer-use-demo/run_pure_computer_use_with_eval.py \
+  --provider anthropic \
+  --api_key "$ANTHROPIC_API_KEY" \
+  --model claude-3-7-sonnet-20250219 \
+  --task_id vscode/task01_updateColorTheme \
+  --exec_mode mixed \
+  --max_turns 20 \
+  --timeout 300 \
+  --log_dir /workspace/logs
+```
+
+### Session Log
+- Session initialized: Starting fresh testing session with refined command parameters
+- **Test Run 1**: Script executed successfully, VSCode theme changed to white
+- **Issue Discovered**: Script continues asking for user input after task completion instead of auto-exiting
+- **Root Cause Analysis**: Script runs in loop controlled by `evaluation_finished` flag (run_pure_computer_use_with_eval.py:230)
+  - Loop continues until either max_turns reached OR evaluator reports task_completed/task_error
+  - Evaluator report is in callback-based system, may not be triggering `evaluation_finished = True` correctly
+- **User Actions to End Script & Get Report**:
+  1. Type "quit" or "exit" at prompt → triggers cleanup and report generation
+  2. Press Ctrl+C → signal handler stops evaluator and saves report
+  3. Wait for auto-detection (if working) → evaluator sets `evaluation_finished = True`
+- **Report Location**: `/workspace/logs/` directory (specified by --log_dir parameter)
+
+#### Test Run 1 - SUCCESSFUL ✅
+- **Action**: User typed "quit" to trigger evaluation
+- **Result**: Task completed successfully - theme changed to "Default Light+"
+- **Metrics**:
+  - Total duration: 58.197 seconds
+  - LLM call count: 1
+  - Tool calls: 7 (all successful, 0 failures)
+  - Tool used: `computer` (7 calls including screenshots and left_click)
+  - Task status: **success**
+  - Completion rate: 100% (1/1 steps completed)
+- **Report saved**: `/workspace/logs/20251109_193153/result_task01_updateColorTheme_20251109_193259.json`
+- **Key Finding**: Typing "quit" successfully triggers `ensure_evaluation_completion()` which:
+  1. Triggers the VSCode hook to read settings.json
+  2. Detects the theme change (Default Light+)
+  3. Sets `evaluation_finished = True`
+  4. Generates comprehensive metrics report
+  5. Saves JSON result file
+  6. Gracefully terminates VSCode process (SIGTERM)
+
+### Preparing task02_wordReplaceInFile
+
+#### Config Comparison (task01 vs task02)
+**Differences Found in Original task02 Config**:
+1. **executable_path**: `/usr/share/code/code` (system VSCode) vs task01's `/workspace/PC-Canary/apps/vscode/scripts/code.sh` (compiled source)
+2. **user-data-dir**: `/root/vscode_user_data_dir/` (inaccessible) vs task01's `/workspace/.mcpworld/vscode/vscode_user_data_dir` (accessible)
+3. **expected_path**: `/root/C-Plus-Plus/...` vs task01's `/workspace/.mcpworld/vscode/C-Plus-Plus/...`
+4. **context_data destinations**: All pointing to `/root/` locations vs task01's `/workspace/.mcpworld/vscode/` locations
+
+#### Changes Applied to task02 Config
+**File Modified**: `PC-Canary/tests/tasks/vscode/task02_wordReplaceInFile/config.json`
+
+1. **Line 8 - executable_path**:
+   - OLD: `/usr/share/code/code`
+   - NEW: `/workspace/PC-Canary/apps/vscode/scripts/code.sh`
+   - Reason: Use compiled VSCode source with proper NVM environment
+
+2. **Line 9 - user-data-dir**:
+   - OLD: `--user-data-dir=/root/vscode_user_data_dir/`
+   - NEW: `--user-data-dir=/workspace/.mcpworld/vscode/vscode_user_data_dir`
+   - Reason: Agent user cannot access /root/, use accessible workspace location
+
+3. **Line 17 - expected_path**:
+   - OLD: `/root/C-Plus-Plus/sorting/bubble_sort.cpp`
+   - NEW: `/workspace/.mcpworld/vscode/C-Plus-Plus/sorting/bubble_sort.cpp`
+   - Reason: File validation path must match accessible context data location
+
+4. **Lines 62, 66, 70 - context_data destinations**:
+   - OLD: `/root/vscode_user_data_dir`, `/root/.vscode/`, `/root/C-Plus-Plus`
+   - NEW: `/workspace/.mcpworld/vscode/vscode_user_data_dir`, `/workspace/.mcpworld/vscode/.vscode/`, `/workspace/.mcpworld/vscode/C-Plus-Plus`
+   - Reason: All context data must be copied to accessible locations for agent user
+
+**Task-Specific Parameters Preserved**:
+- `file_name`: "bubble_sort.cpp" (task02 specific)
+- `origin_name`: "swap_check" (task02 specific)
+- `expected_name`: "swap_flag" (task02 specific)
+- `total_key_steps`: 2 (task02 has 2 steps: open file + verify content)
+- Task02's unique events: `open_file`, `read_origin_content`
+
+#### Test Run 2 - task02_wordReplaceInFile - FAILED ❌
+**Command**:
+```bash
+python3 /workspace/computer-use-demo/run_pure_computer_use_with_eval.py \
+  --provider anthropic \
+  --api_key "$ANTHROPIC_API_KEY" \
+  --model claude-3-7-sonnet-20250219 \
+  --task_id vscode/task02_wordReplaceInFile \
+  --exec_mode mixed \
+  --max_turns 20 \
+  --timeout 300 \
+  --log_dir /workspace/logs
+```
+**Task Objective**: Open bubble_sort.cpp file in VSCode workspace and replace "swap_check" with "swap_flag", then save
+**Expected Key Steps**:
+1. Open file in VSCode
+2. Verify content replacement after task completion
+
+**Result**: Task marked as FAILURE by evaluator
+**Agent Performance**: Claude successfully completed the task:
+- Found and opened bubble_sort.cpp
+- Used find/replace (Ctrl+F, Ctrl+H) to replace "swap_check" → "swap_flag"
+- Saved the file (Ctrl+S)
+- 29 tool calls (27 computer, 2 bash) - all successful (0 failures)
+
+**Root Cause Analysis**:
+1. **Multiple VSCode Sessions**: 2 connected sessions detected - task01's hook still loaded!
+   ```
+   connected_sessions=['MWqWpJEJE-0V3enJAAAB', 'dZsxHDhGMT7wLNDFAAAD']
+   ```
+2. **Wrong Hook Active**: Received theme color message instead of file content:
+   ```
+   任务结束时 VSCode 的主题颜色是 Default Dark Modern
+   ```
+3. **Path Mismatch in hooker.js**: Line 21 still using `/root/C-Plus-Plus/...` instead of `/workspace/.mcpworld/vscode/C-Plus-Plus/...`
+4. **origin_file_content was None**: Hook failed to read initial file content due to path mismatch
+
+**Fixes Applied**:
+1. **Updated hooker.js line 21**:
+   - OLD: `readFile("/root/C-Plus-Plus/sorting/bubble_sort.cpp")`
+   - NEW: `readFile("/workspace/.mcpworld/vscode/C-Plus-Plus/sorting/bubble_sort.cpp")`
+
+**Issue Remaining**: Need to ensure VSCode user data directory is cleaned between task runs to prevent hook contamination from previous tasks
+
+**Metrics**:
+- Total duration: 274.847 seconds
+- LLM call count: 1
+- Tool calls: 29 (all successful)
+- Task status: **failure** (evaluator error, not agent error)
+- Completion rate: 0% (handler couldn't verify due to missing origin_file_content)
+
+### Critical Issue Discovered: Pristine Baseline Contamination
+
+**Problem**: After test run 2, discovered that the pristine baseline file was corrupted:
+- File: `/home/cc/MCPWorld/PC-Canary/tests/context_data/vscode/C-Plus-Plus/bubble_sort.cpp`
+- Expected: Variable named `swap_check` (for task02 to replace with `swap_flag`)
+- Actual: Variable named `swap_flag` (already the end state)
+- Timestamp: File dated Nov 9 19:41 (during task02 execution 19:38-19:42)
+
+**Impact**:
+- Task02 cannot succeed because there's no `swap_check` to find and replace
+- Test is not reproducible - running task02 again would fail immediately
+- Other tasks using this file may also be affected
+
+**Root Cause Analysis**:
+1. **Context data is supposed to be one-way**: `rsync --delete` should copy FROM pristine TO workspace
+2. **Pristine was never in git**: File has no commit history, suggesting it was never properly initialized
+3. **File got contaminated**: Either by incorrect rsync direction or manual modification
+
+**Fixes Applied**:
+1. **Restored pristine baseline** (file modified: bubble_sort.cpp):
+   - Changed all `swap_flag` → `swap_check` (lines 6, 9, 15, 19)
+   - Fixed comment typo on line 18
+   - Now matches task02's expectations: find `swap_check`, replace with `swap_flag`
+
+2. **Added protection against future contamination**:
+   - Made file read-only: `chmod 444 bubble_sort.cpp`
+   - Permissions: `-r--r--r--` (was `-rw-rw-r--`)
+   - Prevents accidental overwrite
+
+3. **Verified copy mechanism**:
+   - Config uses `rsync --delete` for pristine → workspace direction
+   - Context data paths are correct in task02 config
+   - Evaluator will create workspace directory if needed
+
+4. **Fixed path mismatch (sorting/ subdirectory)**:
+   - **Problem**: Config had `/workspace/.mcpworld/vscode/C-Plus-Plus/sorting/bubble_sort.cpp`
+   - **Actual structure**: File is at `/workspace/.mcpworld/vscode/C-Plus-Plus/bubble_sort.cpp` (no sorting/ subdirectory)
+   - **Files fixed**:
+     - config.json line 17: Removed `/sorting/` from expected_path
+     - hooker.js line 21: Removed `/sorting/` from file path
+   - **Impact**: Handler and hook can now find the file for validation
+
+5. **Added workspace argument to VSCode launch**:
+   - **Problem**: VSCode could launch without correct workspace, agent might find pristine files via grep/find
+   - **Fix**: Added `/workspace/.mcpworld/vscode/C-Plus-Plus` to config.json args array
+   - **Impact**: VSCode opens with correct folder in file explorer, agent sees files immediately
+
+#### Test Run 3 - task02_wordReplaceInFile - FAILED ❌ (Permission Denied)
+**Command**: Same as Test Run 2
+**Result**: Task marked as FAILURE - agent hit max_turns (20) without completing
+
+**Agent Performance**:
+- ✅ Key Step 1 completed: Opened bubble_sort.cpp file successfully
+- ✅ Found all 4 occurrences of `swap_check` in the file
+- ❌ Could not complete replacements due to permission issues
+
+**Agent Actions**:
+1. Took screenshot, saw VSCode with file explorer
+2. Clicked on bubble_sort.cpp - **File opened successfully** (Key Step 1 complete)
+3. Pressed Ctrl+H to open Find/Replace dialog
+4. Typed "swap_check" in Find field
+5. Typed "swap_flag" in Replace field
+6. Tried clicking "Replace All" button multiple times - **button did not work**
+7. Attempted alternative: Used `str_replace_editor` tool to modify files directly
+8. Found both file paths:
+   - Pristine: `/workspace/PC-Canary/tests/context_data/vscode/C-Plus-Plus/bubble_sort.cpp`
+   - Workspace: `/workspace/.mcpworld/vscode/C-Plus-Plus/bubble_sort.cpp`
+9. **Got Permission Denied on BOTH files** ❌
+10. Attempted manual editing via VSCode UI
+11. Hit max_turns (20) before completing
+
+**Root Cause Analysis - CRITICAL DISCOVERY**:
+- **Workspace file is read-only**: `-r--r--r--` (444 permissions)
+- **Why**: Pristine file was set to `chmod 444` to prevent contamination
+- **Problem**: `rsync -av --delete` preserves file permissions when copying
+- **Impact**: Agent user cannot write to workspace copy of bubble_sort.cpp
+
+**Errors**:
+```
+Permission denied: '/workspace/.mcpworld/vscode/C-Plus-Plus/bubble_sort.cpp'
+```
+
+**Final API Error**:
+```
+Error code: 400 - tool_result: all content must be `text` if `is_error` is true
+```
+
+**Fix Applied**:
+1. **Updated restore_context_data.py line 25**:
+   - OLD: `rsync_cmd = ["rsync", "-av", "--delete", f"{from_path}/", to_path]`
+   - NEW: `rsync_cmd = ["rsync", "-av", "--delete", "--chmod=F644", f"{from_path}/", to_path]`
+   - Reason: Ensure all copied files are writable (644) even if pristine is read-only (444)
+   - Impact: Workspace files will be writable for agent while pristine remains protected
+
+2. **Pristine protection maintained**:
+   - Pristine file remains `chmod 444` (read-only)
+   - Prevents accidental contamination of baseline
+   - rsync `--chmod=F644` only affects destination files, not source
+
+**Metrics**:
+- Total duration: ~120 seconds (hit timeout at max_turns)
+- Tool calls: 20+ (many computer, str_replace_editor, bash)
+- Tool failures: Multiple (permission denied, keyboard key errors)
+- Task status: **failure**
+- Completion rate: 50% (1/2 key steps - opened file but didn't modify)
+- Key findings:
+  - VSCode Replace All button unresponsive (UI interaction issue)
+  - Agent adapted to try alternative tools (good problem-solving)
+  - File permissions blocked all modification attempts
+
+- 2025-11-08: Replaced /workspace/bin/code symlink with a wrapper script that always calls /workspace/PC-Canary/apps/vscode/scripts/code.sh --no-sandbox (with fallback to repo path) so VSCode CLI works inside the container without editing the original script.
+
+- 2025-11-08: Updated PC-Canary/apps/vscode/scripts/code.sh Docker branch to always pass --no-sandbox (alongside --disable-dev-shm-usage) so Chromium runs inside the container; reverted /workspace/bin/code back to a simple symlink now that the flag is baked in.
+
+- 2025-11-09: Translated VSCode task01/task02 config, hooker, and handler files to English to avoid mixed-language instructions/logs (see PC-Canary/tests/tasks/vscode/task01_updateColorTheme/* and task02_wordReplaceInFile/*).
+
+- 2025-11-09: Restricted str_replace_editor to /workspace/.mcpworld so agents can only edit the workspace mirror; paths elsewhere now raise a ToolError.
