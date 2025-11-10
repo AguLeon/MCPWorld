@@ -641,19 +641,23 @@ def _make_tool_result_segment(
 ) -> ToolResultSegment:
     """Convert an agent ToolResult to a provider-agnostic ToolResultSegment."""
     images: list[dict[str, Any]] = []
-    if result.base64_image:
-        images.append(
-            {
-                "type": "base64",
-                "media_type": "image/png",
-                "data": result.base64_image,
-            }
-        )
+    DEFAULT_ERROR_TEXT = "Tool reported an error but no details were captured."
 
     if result.error:
-        output_text = _maybe_prepend_system_tool_result(result, result.error)
+        error_text = result.error.strip()
+        if not error_text:
+            error_text = DEFAULT_ERROR_TEXT
+        output_text = _maybe_prepend_system_tool_result(result, error_text)
         is_error = True
     else:
+        if result.base64_image:
+            images.append(
+                {
+                    "type": "base64",
+                    "media_type": "image/png",
+                    "data": result.base64_image,
+                }
+            )
         output_text = (
             _maybe_prepend_system_tool_result(result, result.output)
             if result.output
