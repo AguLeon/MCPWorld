@@ -14,13 +14,67 @@ services:
       - "5904:5904"
       - "8501:8501"
       - "6080:6080"
-      - "8080:8080"
+      # - "8080:8080"
     environment:
       - ANTHROPIC_API_KEY=dummy_api_key
-      - OPENAI_BASE_URL=http://localhost:11434
+      # - OPENAI_BASE_URL=http://localhost:11434
+      - OPENAI_BASE_URL=http://host.docker.internal:11434
       - OPENAI_ENDPOINT=/v1/chat/completions
       - OPENAI_TIMEOUT=300
       - INSTALL_APPS=${INSTALL_APPS-}
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    networks:
+      - testbed-docker
     command: /bin/bash /workspace/docker/start_service.sh
     tty: true
     stdin_open: true
+
+  ollama:
+    volumes:
+      - ../ollama/ollama:/root/.ollama
+    container_name: ollama
+    tty: true
+    restart: unless-stopped
+    image: docker.io/ollama/ollama:latest
+    ports:
+      - 11434:11434
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+    networks:
+      - testbed-docker
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  ollama-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: ollama-webui
+    volumes:
+      - ./ollama/ollama-webui:/app/backend/data
+    depends_on:
+      - ollama
+    ports:
+      - 8080:8080
+    environment:
+      - OLLAMA_BASE_URLS=http://host.docker.internal:11434 #comma separated ollama hosts
+      - ENV=dev
+      - WEBUI_AUTH=False
+      - WEBUI_NAME=valiantlynx AI
+      - WEBUI_URL=http://localhost:8080
+      - WEBUI_SECRET_KEY=t0p-s3cr3t
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    restart: unless-stopped
+    networks:
+      - testbed-docker
+
+
+
+networks:
+  testbed-docker:
+    external: false
