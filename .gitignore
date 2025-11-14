@@ -223,3 +223,4 @@ logs_computer_use_eval/
 */ollama/*
 sample_message_stream.json
 logs/*
+.mcpworld/*
