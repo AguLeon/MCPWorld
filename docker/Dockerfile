@@ -111,7 +111,7 @@ RUN dpkg -i turbovnc_3.1.4_amd64.deb
 # RUN rm turbovnc_3.1.4_amd64.deb
 
 # Install Ollama (for local LLM serving)
-RUN curl -fsSL https://ollama.com/install.sh | bash
+# RUN curl -fsSL https://ollama.com/install.sh | bash
 
 # Create a new user and configure permissions
 RUN groupadd vglusers
