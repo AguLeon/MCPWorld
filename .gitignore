@@ -220,4 +220,6 @@ logs_computer_use_eval/
 # Misc
 /bin
 
+*/ollama/*
 sample_message_stream.json
+logs/*
