@@ -22,6 +22,8 @@ services:
       - OPENAI_ENDPOINT=/v1/chat/completions
       - OPENAI_TIMEOUT=300
       - INSTALL_APPS=${INSTALL_APPS-}
+      - WIDTH=1000
+      - HEIGHT=1000
     extra_hosts:
       - host.docker.internal:host-gateway
     networks:
