@@ -452,7 +452,7 @@ def _image_to_content_block(image: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if not data:
             return None
         data_uri = f"data:{media_type};base64,{data}"
-        return {"type": "input_image", "image_url": {"url": data_uri}}
+        return {"type": "image_url", "image_url": {"url": data_uri}}
 
     if img_type in {"url", "image_url"}:
         url = image.get("url") or image.get("href")
