@@ -158,9 +158,9 @@ RUN mkdir -p ~/miniconda3 && \
 # Set environment variables for display and TurboVNC
 RUN echo 'export DISPLAY=:4' >> ~/.bashrc && \
     echo 'export XDG_SESSION_TYPE=x11' >> ~/.bashrc && \
-    echo 'export PATH=/opt/TurboVNC/bin:$PATH' >> ~/.bashrc && \
-    echo 'export WIDTH=1024' >> ~/.bashrc && \
-    echo 'export HEIGHT=768' >> ~/.bashrc
+    echo 'export PATH=/opt/TurboVNC/bin:$PATH' >> ~/.bashrc
+    # echo 'export WIDTH=1024' >> ~/.bashrc && \
+    # echo 'export HEIGHT=768' >> ~/.bashrc
 #     echo 'export DISPLAY=:1' >> ~/.bashrc && \
 #     echo 'export VGL_DISPLAY=:0' >> ~/.bashrc && \
 #     echo 'alias vglrun="/opt/VirtualGL/bin/vglrun"' >> ~/.bashrc

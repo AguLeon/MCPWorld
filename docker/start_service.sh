@@ -8,8 +8,11 @@ mkdir -p ~/.vnc
 echo "12345678" | /opt/TurboVNC/bin/vncpasswd -f >~/.vnc/passwd
 chmod 600 ~/.vnc/passwd
 
+echo $WIDTH
+echo $HEIGHT
+
 # Run the VNC Server
-/opt/TurboVNC/bin/vncserver -xstartup ~/.vnc/xstartup -geometry 1024x768 :4
+/opt/TurboVNC/bin/vncserver -xstartup ~/.vnc/xstartup -geometry ${WIDTH}x${HEIGHT} :4
 
 # Run the noVNC server (for web inteface)
 /opt/noVNC/utils/novnc_proxy \
