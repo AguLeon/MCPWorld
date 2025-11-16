@@ -96,6 +96,19 @@ class OpenAIAdapter(BaseProviderAdapter):
         if response_format:
             payload["response_format"] = response_format
 
+        # DEBUG: Log COMPLETE request payload to dedicated file
+        import json
+        import datetime
+        import os
+        log_dir = "/tmp/qwen_request_logs"
+        os.makedirs(log_dir, exist_ok=True)
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        log_file = f"{log_dir}/request_{timestamp}.json"
+        with open(log_file, 'w') as f:
+            json.dump(payload, f, indent=2)
+        print(f"\n[FULL REQUEST LOGGED] Complete request saved to: {log_file}", flush=True)
+        print(f"[FULL REQUEST LOGGED] File size: {len(json.dumps(payload))} bytes\n", flush=True)
+
         headers: Dict[str, str] = {
             "Content-Type": "application/json",
         }
