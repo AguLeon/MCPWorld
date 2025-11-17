@@ -71,6 +71,88 @@ def _normalize_computer_tool_input(tool_input: dict[str, Any]) -> None:
     if "key" in tool_input and not isinstance(tool_input["key"], str):
         tool_input["key"] = str(tool_input["key"])
 
+    def _normalize_key_chord(value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            return normalized
+        modifiers_aliases = {
+            "ctrl": "ctrl",
+            "control": "ctrl",
+            "shift": "shift",
+            "alt": "alt",
+            "option": "alt",
+            "meta": "meta",
+            "cmd": "super",
+            "command": "super",
+            "super": "super",
+            "win": "super",
+            "windows": "super",
+        }
+        key_aliases = {
+            "enter": "Return",
+            "return": "Return",
+            "esc": "Escape",
+            "escape": "Escape",
+            "space": "space",
+            "spacebar": "space",
+            "tab": "Tab",
+            "backspace": "BackSpace",
+            "delete": "Delete",
+            "del": "Delete",
+            "insert": "Insert",
+            "home": "Home",
+            "end": "End",
+            "pageup": "Page_Up",
+            "pagedown": "Page_Down",
+            "up": "Up",
+            "down": "Down",
+            "left": "Left",
+            "right": "Right",
+            "[": "bracketleft",
+            "]": "bracketright",
+            "{": "braceleft",
+            "}": "braceright",
+            "\\": "backslash",
+            "|": "bar",
+            ";": "semicolon",
+            ":": "colon",
+            "'": "apostrophe",
+            "\"": "quotedbl",
+            ",": "comma",
+            "<": "less",
+            ".": "period",
+            ">": "greater",
+            "/": "slash",
+            "?": "question",
+            "`": "grave",
+            "~": "asciitilde",
+            "-": "minus",
+            "_": "underscore",
+            "=": "equal",
+            "+": "plus",
+        }
+        parts = [p.strip() for p in normalized.replace("+", " ").split() if p.strip()]
+        if not parts:
+            return normalized
+        modifiers: list[str] = []
+        key: str | None = None
+        for part in parts:
+            lower = part.lower()
+            if lower in modifiers_aliases:
+                modifiers.append(modifiers_aliases[lower])
+            elif lower in key_aliases:
+                key = key_aliases[lower]
+            else:
+                key = part
+        if not key:
+            key = parts[-1]
+        return "+".join(modifiers + [key])
+
+    if "text" in tool_input and isinstance(tool_input["text"], str):
+        tool_input["text"] = _normalize_key_chord(tool_input["text"])
+    if "key" in tool_input and isinstance(tool_input["key"], str):
+        tool_input["key"] = _normalize_key_chord(tool_input["key"])
+
     if "coordinate" in tool_input:
         coordinate = tool_input["coordinate"]
         if (
@@ -84,6 +166,11 @@ def _normalize_computer_tool_input(tool_input: dict[str, Any]) -> None:
 
     # Remove disallowed fields per action to satisfy tool validation
     act = tool_input.get("action")
+
+    # Handle action="key" with key parameter instead of text
+    # Some models send {"action": "key", "key": "Ctrl+h"} when they should send {"action": "key", "text": "Ctrl+h"}
+    if act == "key" and "key" in tool_input and "text" not in tool_input:
+        tool_input["text"] = tool_input.pop("key")
     if isinstance(act, str):
         if act in {
             "type",
