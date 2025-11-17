@@ -1,0 +1,5 @@
+2025-11-17 04:58:06.102 [info] Started local extension host with pid 219057.
+2025-11-17 04:58:06.125 [info] ComputeTargetPlatform: linux-x64
+2025-11-17 04:58:06.387 [info] ChatSessionStore: Migrating 0 chat sessions from storage service to file system
+2025-11-17 04:58:08.874 [error] [UtilityProcessWorker]: terminated unexpectedly with code 2, signal: unknown
+2025-11-17 04:58:08.876 [error] [File Watcher (universal)] restarting watcher after unexpected error: terminated by itself unexpectedly with code 2, signal: unknown (ETERM)

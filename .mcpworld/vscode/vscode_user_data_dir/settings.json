@@ -1,0 +1,45 @@
+{
+    "editor.fontSize": 14,
+    "editor.fontFamily": "Fira Code, Menlo, Monaco, 'Courier New', monospace",
+    "editor.fontLigatures": true,
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true,
+    "editor.renderWhitespace": "all",
+    "editor.wordWrap": "on",
+    "editor.minimap.enabled": true,
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+
+    "workbench.colorTheme": "Default Dark Modern",
+    "workbench.iconTheme": "material-icon-theme",
+    "workbench.tree.indent": 10,
+    "workbench.editor.labelFormat": "short",
+
+    "files.autoSave": "afterDelay",
+    "files.autoSaveDelay": 1000,
+    "files.trimTrailingWhitespace": true,
+    "files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/CVS": true,
+        "**/.DS_Store": true,
+        "**/Thumbs.db": true
+    },
+
+    "security.workspace.trust.enabled": false,
+    "security.workspace.trust.startupPrompt": "never",
+
+    "terminal.integrated.fontSize": 12,
+    "terminal.integrated.defaultProfile.windows": "PowerShell",
+
+    "[python]": {
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true,
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+
+    "prettier.singleQuote": true,
+    "prettier.trailingComma": "all",
+    "prettier.semi": false
+}
