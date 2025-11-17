@@ -76,7 +76,6 @@ def ensure_evaluation_completion(evaluator: Optional[BaseEvaluator], *, trigger_
 
     completed_via_hook = False
     if trigger_hook:
-        print("[DEBUG] Triggering evaluate_on_completion hook...", flush=True)
         evaluator.hook_manager.trigger_evaluate_on_completion()
         completed_via_hook = evaluation_finished
 
@@ -200,10 +199,33 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
             break
 
         # Add user input to message history
+        # On first turn, add generic context about pre-opened applications
+        user_message_text = user_input
+        if turn_count == 0:
+            user_message_text = f"{user_input}\n\nNote: The application is already open on the desktop. Do not open it again - work with the existing instance."
+
         messages.append({
             "role": "user",
-            "content": [{"type": "text", "text": user_input}]
+            "content": [{"type": "text", "text": user_message_text}]
         })
+
+        # Add initial screenshot on first turn to show agent current desktop state
+        if turn_count == 0 and "computer" in tool_collection.tool_map:
+            computer_tool = tool_collection.tool_map["computer"]
+            try:
+                initial_screenshot = await computer_tool.screenshot()
+                if initial_screenshot.base64_image:
+                    messages[-1]["content"].append({
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/png",
+                            "data": initial_screenshot.base64_image
+                        }
+                    })
+                    print("[Initial screenshot attached to show current desktop state]")
+            except Exception as e:
+                print(f"[Warning: Failed to capture initial screenshot: {e}]")
 
         # --- Event recording: LLM call starts ---
         llm_start_time = time.time()

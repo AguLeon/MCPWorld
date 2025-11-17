@@ -153,6 +153,16 @@ SYSTEM_PROMPT_NO_BASH_API_ONLY = f"""<SYSTEM_CAPABILITY>
 </IMPORTANT>
 """
 
+# Additional guidelines for ensuring proper task completion and verification
+TASK_COMPLETION_GUIDELINES = """
+<TASK_COMPLETION>
+* After completing what you believe to be the final step of the task, ALWAYS take a screenshot to verify the result.
+* Describe what you see in the verification screenshot and explicitly state whether the task has been completed successfully.
+* If the task involved editing a file, verify it was saved (check for the unsaved indicator in the editor).
+* If the task involved multiple steps, briefly summarize what was accomplished.
+* End your response with a clear statement: "Task completed successfully" or "Task requires additional steps: [explanation]".
+</TASK_COMPLETION>"""
+
 
 # --- Evaluator Helper Functions ---
 def _record_tool_call_start(
@@ -217,6 +227,22 @@ def _record_tool_call_end(
             print(f"[Evaluator Error] Failed to record TOOL_CALL_END: {rec_e}")
 # --- End Evaluator Helper Functions ---
 
+async def _auto_save_if_possible(
+    tool_collection: ToolCollection,
+    evaluator: Optional[BaseEvaluator],
+    task_id: Optional[str],
+):
+    if "computer" not in tool_collection.tool_map:
+        return
+    tool_input = {"action": "key", "text": "ctrl+s"}
+    try:
+        _record_tool_call_start(evaluator, task_id, "computer", tool_input)
+        result = await tool_collection.run(name="computer", tool_input=tool_input)
+        _record_tool_call_end(evaluator, task_id, "computer", result)
+        print("[INFO] Auto-save issued (Ctrl+S) before exiting.", flush=True)
+    except Exception as exc:
+        print(f"[WARN] Auto-save failed: {exc}", flush=True)
+
 
 async def sampling_loop(
     *,
@@ -250,11 +276,6 @@ async def sampling_loop(
 
     mcp_servers = evaluator_config.get("mcp_servers", [])
     mcp_client = MCPClient()
-    print(
-        f"[DEBUG] sampling_loop init: tool_version={tool_version}, exec_mode={exec_mode}, "
-        f"mcp_servers={mcp_servers}",
-        flush=True,
-    )
     try:
         tool_group = TOOL_GROUPS_BY_VERSION[tool_version]
         allowed_exec_modes = {"mixed", "gui", "api"}
@@ -271,17 +292,10 @@ async def sampling_loop(
         tool_collection = ToolCollection(*(ToolCls() for ToolCls in tool_group.tools))
         tool_specs: list[ToolSpec] = tool_collection.to_specs()
         if active_exec_mode in ["mixed", "api"]:
-            if mcp_servers:
-                print(f"[DEBUG] sampling_loop: connecting to MCP servers: {mcp_servers}", flush=True)
             for server in mcp_servers:
-                print(f"[DEBUG] sampling_loop: connecting via MCP client: {server}", flush=True)
                 await mcp_client.connect_to_server(server)
             extra_tools = await mcp_client.list_tools()
             tool_specs.extend(extra_tools)
-            print(
-                f"[DEBUG] sampling_loop: MCP tools added={len(extra_tools)}, total tool_specs={len(tool_specs)}",
-                flush=True,
-            )
 
         if tool_version == "computer_only":
             base_system_prompt = (
@@ -293,10 +307,12 @@ async def sampling_loop(
             base_system_prompt = (
                 SYSTEM_PROMPT_API_ONLY if active_exec_mode == "api" else SYSTEM_PROMPT
             )
+        # Always append task completion guidelines for better verification behavior
+        system_prompt_with_completion = f"{base_system_prompt}\n{TASK_COMPLETION_GUIDELINES}"
         system_prompt_text = (
-            f"{base_system_prompt} {system_prompt_suffix}"
+            f"{system_prompt_with_completion} {system_prompt_suffix}"
             if system_prompt_suffix
-            else base_system_prompt
+            else system_prompt_with_completion
         )
         system_block = BetaTextBlockParam(type="text", text=system_prompt_text)
 
@@ -425,7 +441,7 @@ async def sampling_loop(
                         }
                     )
                     continue
-                print("[DEBUG] sampling_loop: assistant returned no tool calls; exiting loop.", flush=True)
+                await _auto_save_if_possible(tool_collection, evaluator, evaluator_task_id)
                 return messages
 
             refusal_retries = 0
@@ -473,11 +489,9 @@ async def sampling_loop(
             ]
             messages.append({"role": "user", "content": tool_result_blocks})
     finally:
-        print("[DEBUG] sampling_loop: entering cleanup", flush=True)
         with open("sample_message_stream.json", "w+") as f:
             json.dump(messages, f)
         await mcp_client.cleanup()
-        print("[DEBUG] sampling_loop: cleanup complete", flush=True)
 
 
 def _ensure_explanatory_text(message: ConversationMessage) -> None:
