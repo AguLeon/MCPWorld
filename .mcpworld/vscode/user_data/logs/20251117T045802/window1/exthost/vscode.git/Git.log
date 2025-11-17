@@ -1,0 +1,32 @@
+2025-11-17 04:58:07.016 [info] [main] Log level: Info
+2025-11-17 04:58:07.016 [info] [main] Validating found git in: "git"
+2025-11-17 04:58:07.016 [info] [main] Using git "2.34.1" from "git"
+2025-11-17 04:58:07.016 [info] [Model][doInitialScan] Initial repository scan started
+2025-11-17 04:58:07.016 [info] > git rev-parse --show-toplevel [20ms]
+2025-11-17 04:58:07.017 [info] > git rev-parse --git-dir --git-common-dir [2ms]
+2025-11-17 04:58:07.025 [info] [Model][openRepository] Opened repository (path): /workspace/.mcpworld/vscode/C-Plus-Plus
+2025-11-17 04:58:07.025 [info] [Model][openRepository] Opened repository (real path): /workspace/.mcpworld/vscode/C-Plus-Plus
+2025-11-17 04:58:07.034 [info] > git config --get commit.template [2ms]
+2025-11-17 04:58:07.045 [info] [Git][getRemotes] No remotes found in the git config file
+2025-11-17 04:58:07.046 [info] > git rev-parse --show-toplevel [7ms]
+2025-11-17 04:58:07.067 [info] > git for-each-ref --format=%(refname)%00%(upstream:short)%00%(objectname)%00%(upstream:track)%00%(upstream:remotename)%00%(upstream:remoteref) refs/heads/master refs/remotes/master [22ms]
+2025-11-17 04:58:07.094 [info] > git status -z -uall [22ms]
+2025-11-17 04:58:07.094 [info] > git for-each-ref --sort -committerdate --format %(refname)%00%(objectname)%00%(*objectname) [17ms]
+2025-11-17 04:58:07.111 [info] > git rev-parse --show-toplevel [45ms]
+2025-11-17 04:58:07.119 [info] > git for-each-ref --format=%(refname)%00%(upstream:short)%00%(objectname)%00%(upstream:track)%00%(upstream:remotename)%00%(upstream:remoteref) refs/heads/master refs/remotes/master [10ms]
+2025-11-17 04:58:07.127 [info] > git config --get --local branch.master.vscode-merge-base [4ms]
+2025-11-17 04:58:07.127 [warning] [Git][config] git config failed: Failed to execute git
+2025-11-17 04:58:07.132 [info] > git rev-parse --show-toplevel [13ms]
+2025-11-17 04:58:07.132 [info] > git config --get commit.template [17ms]
+2025-11-17 04:58:07.142 [info] [Git][getRemotes] No remotes found in the git config file
+2025-11-17 04:58:07.142 [info] > git reflog master --grep-reflog=branch: Created from *. [10ms]
+2025-11-17 04:58:07.144 [info] > git for-each-ref --format=%(refname)%00%(upstream:short)%00%(objectname)%00%(upstream:track)%00%(upstream:remotename)%00%(upstream:remoteref) refs/heads/master refs/remotes/master [1ms]
+2025-11-17 04:58:07.155 [info] > git rev-parse --show-toplevel [18ms]
+2025-11-17 04:58:07.161 [info] > git status -z -uall [12ms]
+2025-11-17 04:58:07.162 [info] > git rev-parse --show-toplevel [3ms]
+2025-11-17 04:58:07.162 [info] > git for-each-ref --sort -committerdate --format %(refname)%00%(objectname)%00%(*objectname) [7ms]
+2025-11-17 04:58:07.168 [info] > git rev-parse --show-toplevel [1ms]
+2025-11-17 04:58:07.173 [info] > git rev-parse --show-toplevel [1ms]
+2025-11-17 04:58:07.178 [info] > git rev-parse --show-toplevel [1ms]
+2025-11-17 04:58:07.179 [info] [Model][doInitialScan] Initial repository scan completed - repositories (1), closed repositories (0), parent repositories (0), unsafe repositories (0)
+2025-11-17 04:58:07.551 [info] > git check-ignore -v -z --stdin [1ms]
