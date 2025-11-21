@@ -489,8 +489,6 @@ async def sampling_loop(
             ]
             messages.append({"role": "user", "content": tool_result_blocks})
     finally:
-        with open("sample_message_stream.json", "w+") as f:
-            json.dump(messages, f)
         await mcp_client.cleanup()
 
 
