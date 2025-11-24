@@ -120,6 +120,16 @@ RUN apt update && apt install -y \
 # Add symlink for firefox-esr to firefox
 RUN ln -s /usr/bin/firefox-esr /usr/bin/firefox
 
+# Install Chrome
+RUN wget -q -O google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+    apt-get update && \
+    apt-get install -y ./google-chrome.deb && \
+    rm google-chrome.deb && \
+    apt-get -f install -y
+
+# Add symlink for ease
+RUN ln -s /usr/bin/google-chrome-stable /usr/bin/google-chrome || true
+
 # Install noVNC (for web-based access)
 RUN git clone --branch v1.5.0 https://github.com/novnc/noVNC.git /opt/noVNC && \
     git clone --branch v0.12.0 https://github.com/novnc/websockify /opt/noVNC/utils/websockify && \
@@ -180,7 +190,8 @@ RUN mkdir -p ~/miniconda3 && \
 # Set environment variables for display and TurboVNC
 RUN echo 'export DISPLAY=:4' >> ~/.bashrc && \
     echo 'export XDG_SESSION_TYPE=x11' >> ~/.bashrc && \
-    echo 'export PATH=/opt/TurboVNC/bin:$PATH' >> ~/.bashrc
+    echo 'export PATH=/opt/TurboVNC/bin:$PATH' >> ~/.bashrc && \
+    echo 'alias google-chrome="google-chrome --no-sandbox --disable-dev-shm-usage"' >>~/.bashrc
     # echo 'export WIDTH=1024' >> ~/.bashrc && \
     # echo 'export HEIGHT=768' >> ~/.bashrc
 #     echo 'export DISPLAY=:1' >> ~/.bashrc && \
