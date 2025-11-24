@@ -25,7 +25,12 @@ RUN apt update && \
         net-tools \
         netcat \
         software-properties-common \
-        rsync
+        rsync \
+        autoconf \
+        automake \
+        libtool \
+        pkg-config \
+        ca-certificates
 
 
 # Configure locale settings
@@ -46,7 +51,15 @@ RUN apt install -y \
     xvfb \
     xdotool \
     scrot \
-    imagemagick
+    imagemagick \
+    apt-transport-https \
+    dbus-x11
+
+# Install fonts
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        fonts-wqy-microhei && \
+    apt-get clean
+
 
 # Install lightweight desktop environment Xfce4
 RUN apt install -y \
@@ -70,6 +83,12 @@ RUN apt install -y \
 #     libnvidia-gl-530 \
 #     nvidia-cuda-toolkit 
     
+
+# Add the Mozilla Team PPA for Firefox ESR
+RUN add-apt-repository ppa:mozillateam/ppa -y && \
+    apt-get update -y
+
+
 # Install dependencies
 RUN apt update && apt install -y \
     libglu1-mesa \
@@ -91,12 +110,15 @@ RUN apt update && apt install -y \
     libkrb5-dev \
     # USER apps
     # libreoffice \
-    # firefox-esr \
+    firefox-esr \
     xpdf \
     gedit \
     xpaint \
     unzip \
     galculator
+
+# Add symlink for firefox-esr to firefox
+RUN ln -s /usr/bin/firefox-esr /usr/bin/firefox
 
 # Install noVNC (for web-based access)
 RUN git clone --branch v1.5.0 https://github.com/novnc/noVNC.git /opt/noVNC && \
