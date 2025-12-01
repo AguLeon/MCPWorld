@@ -77,10 +77,10 @@ async def create_page():
         
         # available tools
         tools = await client.list_tools()
-        # print("\nAvailable tools:")
-        # for tool in tools:
-        #     print(f"  - {tool.name} \t {tool.description} {tool.input_schema}")
-        
+        print("\nAvailable tools:")
+        for tool in tools:
+            print(f"  - {tool.name} \t {tool.description} {tool.input_schema}")
+        return 
         # Connect to LocalLLM
         provider = APIProvider.OPENAI
         adapter = _PROVIDER_REGISTRY.create(provider.value)
