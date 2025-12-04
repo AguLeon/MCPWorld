@@ -210,7 +210,7 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
         })
 
         # Add initial screenshot on first turn to show agent current desktop state
-        if turn_count == 0 and "computer" in tool_collection.tool_map:
+        if turn_count == 0 and "computer" in tool_collection.tool_map and args.exec_mode != "api":
             computer_tool = tool_collection.tool_map["computer"]
             try:
                 initial_screenshot = await computer_tool.screenshot()
@@ -320,7 +320,7 @@ if __name__ == "__main__":
     parser.add_argument("--task_id", type=str, required=True, help="PC-Canary Task ID (format: category/id, e.g., computeruse/task01_example)")
     parser.add_argument("--log_dir", type=str, default="logs_computer_use_eval", help="Directory for evaluator logs and results")
     parser.add_argument("--app_path", type=str, default=None, help="Path to specific application if required by the task")
-    parser.add_argument("--timeout", type=int, default=300, help="Overall execution timeout in seconds (default: 300)")
+    parser.add_argument("--timeout", type=int, default=600, help="Overall execution timeout in seconds (default: 600)")
     parser.add_argument("--exec_mode", type=str, choices=["mixed", "gui", "api"], default="mixed", 
                         help="Agent mode for tool use evaluation (default: mixed)")
 
