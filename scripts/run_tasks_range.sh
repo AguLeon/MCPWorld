@@ -44,16 +44,17 @@ MODEL=${MODEL:-qwen3-vl:32b}
 PROVIDER=${PROVIDER:-openai}
 OPENAI_BASE_URL=${OPENAI_BASE_URL:-http://127.0.0.1:11434}
 OPENAI_ENDPOINT=${OPENAI_ENDPOINT:-/v1/chat/completions}
+EXEC_MODE=${EXEC_MODE:-mixed}
 
 case "$SUITE" in
-    vscode)
-        TASK_ROOT="PC-Canary/tests/tasks/vscode"
-        DEFAULT_LOG_ROOT="logs_computer_use_eval/vscode_runs"
-        ;;
-    obsidian)
-        TASK_ROOT="PC-Canary/tests/tasks/obsidian"
-        DEFAULT_LOG_ROOT="logs_computer_use_eval/obsidian_runs"
-        ;;
+vscode)
+    TASK_ROOT="PC-Canary/tests/tasks/vscode"
+    DEFAULT_LOG_ROOT="logs_computer_use_eval/vscode_runs"
+    ;;
+obsidian)
+    TASK_ROOT="PC-Canary/tests/tasks/obsidian"
+    DEFAULT_LOG_ROOT="logs_computer_use_eval/obsidian_runs"
+    ;;
 esac
 
 if [[ -n "$CUSTOM_LOG_ROOT" ]]; then
@@ -100,7 +101,7 @@ for idx in $(seq "$START" "$END"); do
         --model "$MODEL" \
         --task_id "$TASK_ID" \
         --log_dir "$LOG_ROOT" \
-        --exec_mode mixed
+        --exec_mode "$EXEC_MODE"
     TASK_EXIT=$?
     set -e
 
