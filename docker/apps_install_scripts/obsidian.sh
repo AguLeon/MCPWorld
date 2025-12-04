@@ -24,4 +24,7 @@ sudo chmod +x /usr/local/bin/obsidian
 echo 'alias obsidian="~/squashfs-root/obsidian --no-sandbox"' >>~/.bashrc
 source ~/.bashrc
 
+# Setup pre-defined global obsidian config files so that it works with the pre-defined vaults
+cp -r /workspace/PC-Canary/tests/context_data/obsidian/obsidian/ ~/.config/
+
 cd /workspace
