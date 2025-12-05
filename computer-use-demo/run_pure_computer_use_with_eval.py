@@ -57,6 +57,8 @@ except ImportError as e:
     sys.exit(1)
 
 # --- Global flags (used for callback termination of loop) ---
+DEFAULT_TASK_TIMEOUT = 600
+DEFAULT_EVALUATOR_SHUTDOWN_TIMEOUT = 120
 evaluation_finished = False
 evaluator_instance_for_signal: Optional[BaseEvaluator] = None  # For signal handling
 
@@ -80,6 +82,25 @@ def ensure_evaluation_completion(evaluator: Optional[BaseEvaluator], *, trigger_
         completed_via_hook = evaluation_finished
 
     return completed_via_hook
+
+
+def wait_for_evaluator_completion(evaluator: Optional[BaseEvaluator], timeout: float = DEFAULT_EVALUATOR_SHUTDOWN_TIMEOUT) -> bool:
+    """
+    Wait for the evaluator to finish handler work before forcing a stop.
+    Returns True if the evaluator finished, False if we timed out.
+    """
+    if not evaluator:
+        return True
+
+    start_time = time.time()
+    while evaluator.is_running:
+        if evaluation_finished:
+            return True
+        if timeout and (time.time() - start_time) >= timeout:
+            break
+        time.sleep(0.5)
+
+    return evaluation_finished
 
 
 # --- Simple console callback functions ---
@@ -166,10 +187,12 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
     turn_count = 0
     start_time = time.time()  # Record the loop start time for timeout checking
     is_timeout = lambda: args.timeout > 0 and time.time() - start_time > args.timeout
+    timed_out = False
     while (args.max_turns is None or turn_count < args.max_turns) and not evaluation_finished:
         # Check for timeout (relative to the loop start)
         if is_timeout():
             print(f"\nExecution timed out ({args.timeout} seconds)")
+            timed_out = True
             break  # Let finally handle stopping
 
         print("-" * 30)
@@ -188,7 +211,6 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
                     # If no default instruction, normal prompt
                     user_input = input("You: ")
             else:
-                # For non-first turns, normal prompt
                 user_input = input("You: ")
 
             if user_input.lower() in ["quit", "exit"]:
@@ -295,6 +317,11 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
         time.sleep(1)  # Short sleep to avoid high CPU usage and give callbacks time
 
     ensure_evaluation_completion(evaluator, trigger_hook=True)
+    if timed_out and evaluator:
+        evaluator.set_stop_context(
+            reason=f"Task timed out after {args.timeout} seconds (TASK_TIMEOUT)",
+            status="timeout",
+        )
 
 # --- Command-Line Argument Parsing and Main Function ---
 if __name__ == "__main__":
@@ -320,11 +347,19 @@ if __name__ == "__main__":
     parser.add_argument("--task_id", type=str, required=True, help="PC-Canary Task ID (format: category/id, e.g., computeruse/task01_example)")
     parser.add_argument("--log_dir", type=str, default="logs_computer_use_eval", help="Directory for evaluator logs and results")
     parser.add_argument("--app_path", type=str, default=None, help="Path to specific application if required by the task")
-    parser.add_argument("--timeout", type=int, default=600, help="Overall execution timeout in seconds (default: 600)")
+    parser.add_argument("--timeout", type=int, default=DEFAULT_TASK_TIMEOUT, help="Overall execution timeout in seconds (default: 600)")
     parser.add_argument("--exec_mode", type=str, choices=["mixed", "gui", "api"], default="mixed", 
                         help="Agent mode for tool use evaluation (default: mixed)")
 
     args = parser.parse_args()
+
+    if args.timeout == DEFAULT_TASK_TIMEOUT:
+        env_timeout = os.getenv("TASK_TIMEOUT")
+        if env_timeout:
+            try:
+                args.timeout = int(env_timeout)
+            except ValueError:
+                print(f"[WARN] Invalid TASK_TIMEOUT value '{env_timeout}', using default {DEFAULT_TASK_TIMEOUT}")
 
     provider_enum = APIProvider(args.provider)
     args.provider_enum = provider_enum
@@ -398,7 +433,6 @@ if __name__ == "__main__":
         )
         evaluator.timeout = args.timeout
         evaluator_instance_for_signal = evaluator  # Assign to global variable for signal handling
-        evaluator.register_completion_callback(handle_evaluator_event)
     except Exception as e:
         print(f"Failed to initialize evaluator: {e}")
         import traceback
@@ -432,14 +466,12 @@ if __name__ == "__main__":
         traceback.print_exc()
     finally:
         ensure_evaluation_completion(evaluator, trigger_hook=True)
-        # Finally stop the evaluator (if still running)
-        if evaluator and evaluator.is_running:
-            print("[*] (Finally) Stopping evaluator...")
-            evaluator.stop()
-        if evaluator and hasattr(evaluator, 'stop_app'):
-            print("[*] (Finally) Stopping associated app...")
-            evaluator.stop_app()
-        ensure_evaluation_completion(evaluator, trigger_hook=False)
+        finished = wait_for_evaluator_completion(evaluator)
+        if evaluator and evaluator.is_running and not finished:
+            print("[WARN] Evaluator still running after shutdown timeout; forcing stop.")
+            evaluator.stop(reason="Evaluator shutdown timeout", status="stopped")
+            if hasattr(evaluator, 'stop_app'):
+                evaluator.stop_app()
 
         # Report final results
         if evaluator:
@@ -468,4 +500,3 @@ if __name__ == "__main__":
 
         print("=" * 72)
         print("Script execution complete.")
-
