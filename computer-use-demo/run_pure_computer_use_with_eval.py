@@ -465,7 +465,6 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
     finally:
-        ensure_evaluation_completion(evaluator, trigger_hook=True)
         finished = wait_for_evaluator_completion(evaluator)
         if evaluator and evaluator.is_running and not finished:
             print("[WARN] Evaluator still running after shutdown timeout; forcing stop.")
