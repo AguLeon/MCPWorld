@@ -433,6 +433,7 @@ if __name__ == "__main__":
         )
         evaluator.timeout = args.timeout
         evaluator_instance_for_signal = evaluator  # Assign to global variable for signal handling
+        evaluator.register_completion_callback(handle_evaluator_event)
     except Exception as e:
         print(f"Failed to initialize evaluator: {e}")
         import traceback
@@ -466,11 +467,16 @@ if __name__ == "__main__":
         traceback.print_exc()
     finally:
         finished = wait_for_evaluator_completion(evaluator)
-        if evaluator and evaluator.is_running and not finished:
-            print("[WARN] Evaluator still running after shutdown timeout; forcing stop.")
-            evaluator.stop(reason="Evaluator shutdown timeout", status="stopped")
-            if hasattr(evaluator, 'stop_app'):
-                evaluator.stop_app()
+        if evaluator and evaluator.is_running:
+            if finished:
+                evaluator.stop()
+                if hasattr(evaluator, 'stop_app'):
+                    evaluator.stop_app()
+            else:
+                print("[WARN] Evaluator still running after shutdown timeout; forcing stop.")
+                evaluator.stop(reason="Evaluator shutdown timeout", status="stopped")
+                if hasattr(evaluator, 'stop_app'):
+                    evaluator.stop_app()
 
         # Report final results
         if evaluator:
