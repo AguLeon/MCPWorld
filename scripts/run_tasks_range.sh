@@ -40,11 +40,9 @@ SCRIPT_DIR=$(cd -- "$(dirname "$0")" >/dev/null 2>&1 && pwd)
 REPO_ROOT=$(cd -- "$SCRIPT_DIR/.." >/dev/null 2>&1 && pwd)
 cd "$REPO_ROOT"
 
-MODEL=${MODEL:-qwen3-vl:32b}
-PROVIDER=${PROVIDER:-openai}
-OPENAI_BASE_URL=${OPENAI_BASE_URL:-http://127.0.0.1:11434}
-OPENAI_ENDPOINT=${OPENAI_ENDPOINT:-/v1/chat/completions}
-EXEC_MODE=${EXEC_MODE:-mixed}
+CONFIG_FILE="/workspace/scripts/config.cfg"
+
+source "$CONFIG_FILE"
 
 case "$SUITE" in
 vscode)
