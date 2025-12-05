@@ -1,8 +1,0 @@
-[evaluator-entry] activating extension 
-[evaluator-entry] cleared socket.io session storage 
-[evaluator-entry] received inject payload 
-[evaluator-entry] eval succeeded 
-[evaluator-entry] connected to evaluator bridge 
-[evaluator-entry] sent socket payload [{"event_type":"start_success","message":"VSCode renderer connected to evaluator bridge","data":{"colorTheme":"Default Dark Modern","timestamp":1764973796196}}]
-[evaluator-entry] received inject payload 
-[evaluator-entry] eval succeeded 
