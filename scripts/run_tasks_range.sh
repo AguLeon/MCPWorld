@@ -44,6 +44,8 @@ CONFIG_FILE="/workspace/scripts/config.cfg"
 
 source "$CONFIG_FILE"
 
+TASK_TIMEOUT=${TASK_TIMEOUT:-600}
+
 case "$SUITE" in
 vscode)
     TASK_ROOT="PC-Canary/tests/tasks/vscode"
@@ -91,7 +93,7 @@ for idx in $(seq "$START" "$END"); do
     echo ">>> Running $TASK_ID"
 
     set +e
-    printf "\n" | python3 computer-use-demo/run_pure_computer_use_with_eval.py \
+    printf "\nquit\n" | python3 computer-use-demo/run_pure_computer_use_with_eval.py \
         --provider "$PROVIDER" \
         --openai_api_key dummy \
         --openai_base_url "$OPENAI_BASE_URL" \
@@ -99,7 +101,8 @@ for idx in $(seq "$START" "$END"); do
         --model "$MODEL" \
         --task_id "$TASK_ID" \
         --log_dir "$LOG_ROOT" \
-        --exec_mode "$EXEC_MODE"
+        --exec_mode "$EXEC_MODE" \
+        --timeout "$TASK_TIMEOUT"
     TASK_EXIT=$?
     set -e
 
