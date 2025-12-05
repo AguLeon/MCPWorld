@@ -45,6 +45,7 @@ CONFIG_FILE="/workspace/scripts/config.cfg"
 source "$CONFIG_FILE"
 
 TASK_TIMEOUT=${TASK_TIMEOUT:-600}
+ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-"dummy"}
 
 case "$SUITE" in
 vscode)
@@ -89,6 +90,9 @@ for idx in $(seq "$START" "$END"); do
     task_dir=${TASK_DIRS[$((idx - 1))]}
     task_name=$(basename "$task_dir")
     TASK_ID="$SUITE/$task_name"
+    run_timestamp=$(date +%Y%m%d_%H%M%S)
+    RUN_LOG_DIR="$LOG_ROOT/${run_timestamp}_${SUITE}_${task_name}_${idx}"
+    mkdir -p "$RUN_LOG_DIR"
 
     echo ">>> Running $TASK_ID"
 
@@ -100,9 +104,10 @@ for idx in $(seq "$START" "$END"); do
         --openai_endpoint "$OPENAI_ENDPOINT" \
         --model "$MODEL" \
         --task_id "$TASK_ID" \
-        --log_dir "$LOG_ROOT" \
+        --log_dir "$RUN_LOG_DIR" \
         --exec_mode "$EXEC_MODE" \
-        --timeout "$TASK_TIMEOUT"
+        --timeout "$TASK_TIMEOUT" \
+        --api_key "$ANTHROPIC_API_KEY"
     TASK_EXIT=$?
     set -e
 
@@ -113,9 +118,7 @@ for idx in $(seq "$START" "$END"); do
         FALLBACK_REASON="runner_exit_code_${TASK_EXIT}"
     fi
 
-    latest_dir=$(find "$LOG_ROOT" -maxdepth 1 -mindepth 1 -type d -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n1 | cut -d' ' -f2-)
-
-    if [[ -z "$latest_dir" ]]; then
+    if [[ ! -d "$RUN_LOG_DIR" ]]; then
         python3 scripts/collect_metrics.py \
             --task-id "$TASK_ID" \
             --log-dir "missing_log_dir" \
@@ -126,13 +129,13 @@ for idx in $(seq "$START" "$END"); do
         continue
     fi
 
-    result_file=$(find "$latest_dir" -maxdepth 1 -type f -name "result_*.json" -print -quit)
+    result_file=$(find "$RUN_LOG_DIR" -maxdepth 1 -type f -name "result_*.json" -print -quit)
 
     if [[ -n "$result_file" ]]; then
         python3 scripts/collect_metrics.py \
             --result "$result_file" \
             --task-id "$TASK_ID" \
-            --log-dir "$latest_dir" \
+            --log-dir "$RUN_LOG_DIR" \
             --summary "$SUMMARY_FILE" \
             --metrics "$METRICS_FILE" \
             --fallback-status "$FALLBACK_STATUS" \
@@ -140,7 +143,7 @@ for idx in $(seq "$START" "$END"); do
     else
         python3 scripts/collect_metrics.py \
             --task-id "$TASK_ID" \
-            --log-dir "$latest_dir" \
+            --log-dir "$RUN_LOG_DIR" \
             --summary "$SUMMARY_FILE" \
             --metrics "$METRICS_FILE" \
             --fallback-status "$FALLBACK_STATUS" \
