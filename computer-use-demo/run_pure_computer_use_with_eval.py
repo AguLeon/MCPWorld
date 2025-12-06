@@ -188,7 +188,19 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
     start_time = time.time()  # Record the loop start time for timeout checking
     is_timeout = lambda: args.timeout > 0 and time.time() - start_time > args.timeout
     timed_out = False
+    max_llm_calls = args.max_llm_calls
+    llm_call_count = 0
+    llm_limit_reached = False
     while (args.max_turns is None or turn_count < args.max_turns) and not evaluation_finished:
+        if max_llm_calls is not None and llm_call_count >= max_llm_calls:
+            print(f"\nReached MAX_LLM_CALLS ({max_llm_calls}); stopping task.")
+            if evaluator:
+                evaluator.set_stop_context(
+                    reason=f"LLM call limit reached ({max_llm_calls})",
+                    status="stopped",
+                )
+            llm_limit_reached = True
+            break
         # Check for timeout (relative to the loop start)
         if is_timeout():
             print(f"\nExecution timed out ({args.timeout} seconds)")
@@ -304,6 +316,8 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
             'cost': None
         })
 
+        llm_call_count += 1
+
         # --- Check if the Agent reports completion (simple example, needs to be adjusted based on actual output) ---
         # if messages:
         #     last_assistant_message = messages[-1]
@@ -321,6 +335,12 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
         evaluator.set_stop_context(
             reason=f"Task timed out after {args.timeout} seconds (TASK_TIMEOUT)",
             status="timeout",
+        )
+    elif llm_limit_reached and evaluator:
+        # Reason already set above; ensure status persists if stop() happens later
+        evaluator.set_stop_context(
+            reason=f"LLM call limit reached ({max_llm_calls})",
+            status="stopped",
         )
 
 # --- Command-Line Argument Parsing and Main Function ---
@@ -343,6 +363,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_tokens", type=int, default=4096, help="Max tokens for model response")
     parser.add_argument("--system_prompt_suffix", type=str, default="", help="Additional text to append to the system prompt")
     parser.add_argument("--max_turns", type=int, default=10, help="Maximum number of conversation turns (user + assistant, default: 10)")
+    parser.add_argument("--max_llm_calls", type=int, default=None, help="Maximum number of LLM invocations before stopping (default: unlimited)")
     # Evaluator Arguments
     parser.add_argument("--task_id", type=str, required=True, help="PC-Canary Task ID (format: category/id, e.g., computeruse/task01_example)")
     parser.add_argument("--log_dir", type=str, default="logs_computer_use_eval", help="Directory for evaluator logs and results")
@@ -360,6 +381,14 @@ if __name__ == "__main__":
                 args.timeout = int(env_timeout)
             except ValueError:
                 print(f"[WARN] Invalid TASK_TIMEOUT value '{env_timeout}', using default {DEFAULT_TASK_TIMEOUT}")
+
+    if args.max_llm_calls is None:
+        env_max_llm = os.getenv("MAX_LLM_CALLS")
+        if env_max_llm:
+            try:
+                args.max_llm_calls = int(env_max_llm)
+            except ValueError:
+                print(f"[WARN] Invalid MAX_LLM_CALLS value '{env_max_llm}', leaving limit disabled")
 
     provider_enum = APIProvider(args.provider)
     args.provider_enum = provider_enum

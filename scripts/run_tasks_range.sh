@@ -45,6 +45,7 @@ CONFIG_FILE="/workspace/scripts/config.cfg"
 source "$CONFIG_FILE"
 
 TASK_TIMEOUT=${TASK_TIMEOUT:-600}
+TOTAL_TIMEOUT=${TOTAL_TIMEOUT:-$TASK_TIMEOUT}
 ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-"dummy"}
 
 case "$SUITE" in
@@ -96,8 +97,14 @@ for idx in $(seq "$START" "$END"); do
 
     echo ">>> Running $TASK_ID"
 
+    # Ensure the VS Code IPC port is free before starting a new evaluator run
+    if command -v fuser >/dev/null 2>&1; then
+        fuser -k 5000/tcp >/dev/null 2>&1 || true
+        sleep 1
+    fi
+
     set +e
-    printf "\nquit\n" | python3 computer-use-demo/run_pure_computer_use_with_eval.py \
+    printf "\nquit\n" | timeout --preserve-status "$TOTAL_TIMEOUT" python3 computer-use-demo/run_pure_computer_use_with_eval.py \
         --provider "$PROVIDER" \
         --openai_api_key dummy \
         --openai_base_url "$OPENAI_BASE_URL" \
@@ -113,7 +120,10 @@ for idx in $(seq "$START" "$END"); do
 
     FALLBACK_STATUS="success"
     FALLBACK_REASON=""
-    if ((TASK_EXIT != 0)); then
+    if ((TASK_EXIT == 124)); then
+        FALLBACK_STATUS="error"
+        FALLBACK_REASON="timeout_${TOTAL_TIMEOUT}s"
+    elif ((TASK_EXIT != 0)); then
         FALLBACK_STATUS="error"
         FALLBACK_REASON="runner_exit_code_${TASK_EXIT}"
     fi
@@ -129,7 +139,7 @@ for idx in $(seq "$START" "$END"); do
         continue
     fi
 
-    result_file=$(find "$RUN_LOG_DIR" -maxdepth 1 -type f -name "result_*.json" -print -quit)
+    result_file=$(find "$RUN_LOG_DIR" -type f -name "result_*.json" -print -quit)
 
     if [[ -n "$result_file" ]]; then
         python3 scripts/collect_metrics.py \
