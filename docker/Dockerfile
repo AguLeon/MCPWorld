@@ -40,11 +40,11 @@ ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
 # Install core X11 components (lighter than a full desktop environment)
-RUN apt install -y \
+RUN apt update && \
+    apt install -y \
     xserver-xorg \
     xauth \
     x11-apps \
-    dbus-x11 \
     mesa-utils \
     xdg-utils \
     xterm \
@@ -54,6 +54,10 @@ RUN apt install -y \
     imagemagick \
     apt-transport-https \
     dbus-x11
+
+# Create the dbus socket directory
+RUN mkdir -p /run/dbus && chown messagebus:messagebus /run/dbus
+
 
 # Install fonts
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -88,6 +92,11 @@ RUN apt install -y \
 RUN add-apt-repository ppa:mozillateam/ppa -y && \
     apt-get update -y
 
+ENV MOZ_DISABLE_CONTENT_SANDBOX=1
+ENV MOZ_DISABLE_GMP_SANDBOX=1
+ENV MOZ_DISABLE_NPAPI_SANDBOX=1
+ENV MOZ_DISABLE_GPU_SANDBOX=1
+
 
 # Install dependencies
 RUN apt update && apt install -y \
@@ -120,6 +129,13 @@ RUN apt update && apt install -y \
 # Add symlink for firefox-esr to firefox
 RUN ln -s /usr/bin/firefox-esr /usr/bin/firefox
 
+# Set Firefox as system default browser
+RUN update-alternatives --set x-www-browser /usr/bin/firefox-esr && \
+    update-alternatives --set gnome-www-browser /usr/bin/firefox-esr || true
+
+ENV BROWSER=/usr/bin/firefox-esr
+
+
 # Install Chrome
 RUN wget -q -O google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
     apt-get update && \
@@ -128,7 +144,11 @@ RUN wget -q -O google-chrome.deb https://dl.google.com/linux/direct/google-chrom
     apt-get -f install -y
 
 # Add symlink for ease
-RUN ln -s /usr/bin/google-chrome-stable /usr/bin/google-chrome || true
+# RUN ln -s /usr/bin/google-chrome-stable /usr/bin/google-chrome || true
+# Add the --no-sandbox and other flags to remove welcome window
+RUN echo '#!/bin/bash' | tee /usr/local/bin/google-chrome >/dev/null && \
+    echo "/usr/bin/google-chrome-stable --no-sandbox --disable-dev-shm-usage --no-first-run --disable-fre --disable-gpu --disable-software-rasterizer --disable-background-networking --disable-dbus \"\$@\"" | tee -a /usr/local/bin/google-chrome >/dev/null  && \
+    chmod +x /usr/local/bin/google-chrome
 
 # Install noVNC (for web-based access)
 RUN git clone --branch v1.5.0 https://github.com/novnc/noVNC.git /opt/noVNC && \
@@ -191,7 +211,7 @@ RUN mkdir -p ~/miniconda3 && \
 RUN echo 'export DISPLAY=:4' >> ~/.bashrc && \
     echo 'export XDG_SESSION_TYPE=x11' >> ~/.bashrc && \
     echo 'export PATH=/opt/TurboVNC/bin:$PATH' >> ~/.bashrc && \
-    echo 'alias google-chrome="google-chrome --no-sandbox --disable-dev-shm-usage"' >>~/.bashrc
+    echo 'alias google-chrome="google-chrome --no-sandbox --disable-dev-shm-usage --no-first-run --disable-fre"' >>~/.bashrc
     # echo 'export WIDTH=1024' >> ~/.bashrc && \
     # echo 'export HEIGHT=768' >> ~/.bashrc
 #     echo 'export DISPLAY=:1' >> ~/.bashrc && \
@@ -204,8 +224,28 @@ RUN echo 'export DISPLAY=:4' >> ~/.bashrc && \
 # Set startup command for the VNC server
 USER agent
 
+# Set Firefox as default browser for user session
+RUN mkdir -p /home/agent/.config /home/agent/.local/share/applications && \
+    echo "[Default Applications]\n\
+text/html=firefox-esr.desktop\n\
+x-scheme-handler/http=firefox-esr.desktop\n\
+x-scheme-handler/https=firefox-esr.desktop\n\
+x-scheme-handler/about=firefox-esr.desktop\n\
+x-scheme-handler/unknown=firefox-esr.desktop\n\
+application/xhtml+xml=firefox-esr.desktop\n\
+application/xml=firefox-esr.desktop" > /home/agent/.config/mimeapps.list
+
+# Also set for Xfce specifically
+RUN mkdir -p /home/agent/.config/xfce4 && \
+    echo "WebBrowser=firefox-esr" > /home/agent/.config/xfce4/helpers.rc
+
+
 RUN mkdir /home/agent/.vnc/
 RUN echo -e '#!/bin/sh\n \
+# Start D-Bus\n\
+if [ -z "$DBUS_SESSION_BUS_ADDRESS" ]; then\n\
+    eval $(dbus-launch --sh-syntax)\n\
+fi\n\
 xrdb "$HOME/.Xresources"\n \
 xsetroot -solid grey\n \
 export XKL_XMODMAP_DISABLE=1\n \
