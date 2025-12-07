@@ -146,6 +146,10 @@ def _normalize_computer_tool_input(tool_input: dict[str, Any]) -> None:
                 key = part
         if not key:
             key = parts[-1]
+
+        if not modifiers:
+            return " ".join(parts)
+
         return "+".join(modifiers + [key])
 
     if "text" in tool_input and isinstance(tool_input["text"], str):
