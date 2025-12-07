@@ -122,6 +122,22 @@ class BaseComputerTool:
             self._display_prefix = ""
 
         self.xdotool = f"{self._display_prefix}xdotool"
+        self._key_name_overrides = {
+            "enter": "Return",
+            "return": "Return",
+        }
+
+    def _normalize_key_text(self, text: str) -> str:
+        def normalize_combo(combo: str) -> str:
+            parts = combo.split("+")
+            normalized = []
+            for part in parts:
+                key = part.strip()
+                normalized.append(self._key_name_overrides.get(key.lower(), key))
+            return "+".join(normalized)
+
+        combos = text.split()
+        return " ".join(normalize_combo(combo) for combo in combos)
 
     async def __call__(
         self,
@@ -158,6 +174,7 @@ class BaseComputerTool:
                 raise ToolError(output=f"{text} must be a string")
 
             if action == "key":
+                text = self._normalize_key_text(text)
                 command_parts = [self.xdotool, f"key -- {text}"]
                 return await self.shell(" ".join(command_parts))
             elif action == "type":
