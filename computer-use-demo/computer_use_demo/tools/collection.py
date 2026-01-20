@@ -146,6 +146,14 @@ def _normalize_computer_tool_input(tool_input: dict[str, Any]) -> None:
                 key = part
         if not key:
             key = parts[-1]
+
+        # If we didn't recognize any modifier keys, avoid introducing "+" syntax
+        # and instead preserve the original space-separated parts. This keeps
+        # plain text / non-modifier input closer to what the model provided,
+        # while only normalizing chords that actually use known modifiers.
+        if not modifiers:
+            return " ".join(parts)
+
         return "+".join(modifiers + [key])
 
     if "text" in tool_input and isinstance(tool_input["text"], str):

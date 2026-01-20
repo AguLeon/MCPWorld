@@ -57,6 +57,8 @@ except ImportError as e:
     sys.exit(1)
 
 # --- Global flags (used for callback termination of loop) ---
+DEFAULT_TASK_TIMEOUT = 600
+DEFAULT_EVALUATOR_SHUTDOWN_TIMEOUT = 120
 evaluation_finished = False
 evaluator_instance_for_signal: Optional[BaseEvaluator] = None  # For signal handling
 
@@ -80,6 +82,25 @@ def ensure_evaluation_completion(evaluator: Optional[BaseEvaluator], *, trigger_
         completed_via_hook = evaluation_finished
 
     return completed_via_hook
+
+
+def wait_for_evaluator_completion(evaluator: Optional[BaseEvaluator], timeout: float = DEFAULT_EVALUATOR_SHUTDOWN_TIMEOUT) -> bool:
+    """
+    Wait for the evaluator to finish handler work before forcing a stop.
+    Returns True if the evaluator finished, False if we timed out.
+    """
+    if not evaluator:
+        return True
+
+    start_time = time.time()
+    while evaluator.is_running:
+        if evaluation_finished:
+            return True
+        if timeout and (time.time() - start_time) >= timeout:
+            break
+        time.sleep(0.5)
+
+    return evaluation_finished
 
 
 # --- Simple console callback functions ---
@@ -166,10 +187,24 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
     turn_count = 0
     start_time = time.time()  # Record the loop start time for timeout checking
     is_timeout = lambda: args.timeout > 0 and time.time() - start_time > args.timeout
+    timed_out = False
+    max_llm_calls = args.max_llm_calls
+    llm_call_count = 0
+    llm_limit_reached = False
     while (args.max_turns is None or turn_count < args.max_turns) and not evaluation_finished:
+        if max_llm_calls is not None and llm_call_count >= max_llm_calls:
+            print(f"\nReached MAX_LLM_CALLS ({max_llm_calls}); stopping task.")
+            if evaluator:
+                evaluator.set_stop_context(
+                    reason=f"LLM call limit reached ({max_llm_calls})",
+                    status="stopped",
+                )
+            llm_limit_reached = True
+            break
         # Check for timeout (relative to the loop start)
         if is_timeout():
             print(f"\nExecution timed out ({args.timeout} seconds)")
+            timed_out = True
             break  # Let finally handle stopping
 
         print("-" * 30)
@@ -188,7 +223,6 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
                     # If no default instruction, normal prompt
                     user_input = input("You: ")
             else:
-                # For non-first turns, normal prompt
                 user_input = input("You: ")
 
             if user_input.lower() in ["quit", "exit"]:
@@ -210,7 +244,7 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
         })
 
         # Add initial screenshot on first turn to show agent current desktop state
-        if turn_count == 0 and "computer" in tool_collection.tool_map:
+        if turn_count == 0 and "computer" in tool_collection.tool_map and args.exec_mode != "api":
             computer_tool = tool_collection.tool_map["computer"]
             try:
                 initial_screenshot = await computer_tool.screenshot()
@@ -282,6 +316,8 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
             'cost': None
         })
 
+        llm_call_count += 1
+
         # --- Check if the Agent reports completion (simple example, needs to be adjusted based on actual output) ---
         # if messages:
         #     last_assistant_message = messages[-1]
@@ -295,6 +331,17 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
         time.sleep(1)  # Short sleep to avoid high CPU usage and give callbacks time
 
     ensure_evaluation_completion(evaluator, trigger_hook=True)
+    if timed_out and evaluator:
+        evaluator.set_stop_context(
+            reason=f"Task timed out after {args.timeout} seconds (TASK_TIMEOUT)",
+            status="timeout",
+        )
+    elif llm_limit_reached and evaluator:
+        # Reason already set above; ensure status persists if stop() happens later
+        evaluator.set_stop_context(
+            reason=f"LLM call limit reached ({max_llm_calls})",
+            status="stopped",
+        )
 
 # --- Command-Line Argument Parsing and Main Function ---
 if __name__ == "__main__":
@@ -316,15 +363,32 @@ if __name__ == "__main__":
     parser.add_argument("--max_tokens", type=int, default=4096, help="Max tokens for model response")
     parser.add_argument("--system_prompt_suffix", type=str, default="", help="Additional text to append to the system prompt")
     parser.add_argument("--max_turns", type=int, default=10, help="Maximum number of conversation turns (user + assistant, default: 10)")
+    parser.add_argument("--max_llm_calls", type=int, default=None, help="Maximum number of LLM invocations before stopping (default: unlimited)")
     # Evaluator Arguments
     parser.add_argument("--task_id", type=str, required=True, help="PC-Canary Task ID (format: category/id, e.g., computeruse/task01_example)")
     parser.add_argument("--log_dir", type=str, default="logs_computer_use_eval", help="Directory for evaluator logs and results")
     parser.add_argument("--app_path", type=str, default=None, help="Path to specific application if required by the task")
-    parser.add_argument("--timeout", type=int, default=300, help="Overall execution timeout in seconds (default: 300)")
+    parser.add_argument("--timeout", type=int, default=DEFAULT_TASK_TIMEOUT, help="Overall execution timeout in seconds (default: 600)")
     parser.add_argument("--exec_mode", type=str, choices=["mixed", "gui", "api"], default="mixed", 
                         help="Agent mode for tool use evaluation (default: mixed)")
 
     args = parser.parse_args()
+
+    if args.timeout == DEFAULT_TASK_TIMEOUT:
+        env_timeout = os.getenv("TASK_TIMEOUT")
+        if env_timeout:
+            try:
+                args.timeout = int(env_timeout)
+            except ValueError:
+                print(f"[WARN] Invalid TASK_TIMEOUT value '{env_timeout}', using default {DEFAULT_TASK_TIMEOUT}")
+
+    if args.max_llm_calls is None:
+        env_max_llm = os.getenv("MAX_LLM_CALLS")
+        if env_max_llm:
+            try:
+                args.max_llm_calls = int(env_max_llm)
+            except ValueError:
+                print(f"[WARN] Invalid MAX_LLM_CALLS value '{env_max_llm}', leaving limit disabled")
 
     provider_enum = APIProvider(args.provider)
     args.provider_enum = provider_enum
@@ -431,15 +495,17 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
     finally:
-        ensure_evaluation_completion(evaluator, trigger_hook=True)
-        # Finally stop the evaluator (if still running)
+        finished = wait_for_evaluator_completion(evaluator)
         if evaluator and evaluator.is_running:
-            print("[*] (Finally) Stopping evaluator...")
-            evaluator.stop()
-        if evaluator and hasattr(evaluator, 'stop_app'):
-            print("[*] (Finally) Stopping associated app...")
-            evaluator.stop_app()
-        ensure_evaluation_completion(evaluator, trigger_hook=False)
+            if finished:
+                evaluator.stop()
+                if hasattr(evaluator, 'stop_app'):
+                    evaluator.stop_app()
+            else:
+                print("[WARN] Evaluator still running after shutdown timeout; forcing stop.")
+                evaluator.stop(reason="Evaluator shutdown timeout", status="stopped")
+                if hasattr(evaluator, 'stop_app'):
+                    evaluator.stop_app()
 
         # Report final results
         if evaluator:
@@ -468,4 +534,3 @@ if __name__ == "__main__":
 
         print("=" * 72)
         print("Script execution complete.")
-

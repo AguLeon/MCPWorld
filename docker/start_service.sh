@@ -23,6 +23,13 @@ echo $HEIGHT
 # Install Python Packages
 /home/agent/miniconda3/bin/pip install -r /workspace/computer-use-demo/computer_use_demo/requirements.txt
 
+# Run streamlit headless
+# NOTE: Running streamlit here caused unexpected issues, please run it from a bash session
+# cd /workspace/computer-use-demo
+# STREAMLIT_SERVER_HEADLESS=true STREAMLIT_SERVER_PORT=8501 python -m streamlit run computer_use_demo/streamlit.py >/tmp/streamlit.log 2>&1 &
+
+cd /workspace
+
 INSTALL_APPS_CSV="${INSTALL_APPS:-}"
 mkdir -p /workspace/bin
 export PATH="/workspace/bin:$PATH"
