@@ -297,6 +297,11 @@ async def sampling_loop(
             extra_tools = await mcp_client.list_tools()
             tool_specs.extend(extra_tools)
 
+        # Store available tools for hallucination detection
+        if evaluator and evaluator_task_id:
+            available_tool_names = [spec.name for spec in tool_specs]
+            evaluator.set_available_tools(evaluator_task_id, available_tool_names)
+
         if tool_version == "computer_only":
             base_system_prompt = (
                 SYSTEM_PROMPT_NO_BASH_API_ONLY
