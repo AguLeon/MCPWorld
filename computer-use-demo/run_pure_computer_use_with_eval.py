@@ -189,10 +189,11 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
     is_timeout = lambda: args.timeout > 0 and time.time() - start_time > args.timeout
     timed_out = False
     max_llm_calls = args.max_llm_calls
-    llm_call_count = 0
     llm_limit_reached = False
     while (args.max_turns is None or turn_count < args.max_turns) and not evaluation_finished:
-        if max_llm_calls is not None and llm_call_count >= max_llm_calls:
+        # Note: max_llm_calls limits conversation turns, not individual LLM API calls
+        # (actual API calls are now counted inside sampling_loop)
+        if max_llm_calls is not None and turn_count >= max_llm_calls:
             print(f"\nReached MAX_LLM_CALLS ({max_llm_calls}); stopping task.")
             if evaluator:
                 evaluator.set_stop_context(
@@ -261,21 +262,10 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
             except Exception as e:
                 print(f"[Warning: Failed to capture initial screenshot: {e}]")
 
-        # --- Event recording: LLM call starts ---
-        llm_start_time = time.time()
-        model_name_to_record = args.model  # Or try to get it from the client
-        evaluator.record_event(AgentEvent.LLM_QUERY_START, {
-            'timestamp': llm_start_time,
-            'model_name': model_name_to_record
-        })
-
         print("Assistant thinking...")
-        llm_success = False
-        llm_error = None
-        usage_info = None  # Initialize usage_info
         try:
             # --- Call core sampling_loop ---
-            # Need to pass evaluator and task_id for internal TOOL event recording
+            # LLM event recording now happens inside sampling_loop for each actual API call
             messages = await sampling_loop(
                 model=args.model,
                 provider=provider,
@@ -294,29 +284,9 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
                 thinking_budget=None,
                 token_efficient_tools_beta=False,
                 exec_mode=args.exec_mode,
-                # TODO: Try making sampling_loop return usage_info
             )
-            # Assume if no exception is thrown in sampling_loop, the LLM call was successful
-            # But we don't directly get usage_info
-            llm_success = True
-            # print(f"Debug: messages after loop: {messages}")  # For debugging
         except Exception as e:
             print(f"\n[Error during agent loop]: {e}")
-            llm_error = str(e)
-            # break  # Exit loop on error
-
-        # --- Event recording: LLM call ends ---
-        # Temporarily unable to get exact tokens, record None
-        evaluator.record_event(AgentEvent.LLM_QUERY_END, {
-            'timestamp': time.time(),
-            'status': 'success' if llm_success else 'error',
-            'error': llm_error,
-            'prompt_tokens': None,  # <-- Missing
-            'completion_tokens': None,  # <-- Missing
-            'cost': None
-        })
-
-        llm_call_count += 1
 
         # --- Check if the Agent reports completion (simple example, needs to be adjusted based on actual output) ---
         # if messages:

@@ -405,19 +405,69 @@ async def sampling_loop(
                 f"{provider.value} model={model} messages={len(messages)}",
                 flush=True,
             )
+
+            # Record LLM query start
+            llm_start_time = time.time()
+            if evaluator and evaluator_task_id and AgentEvent:
+                try:
+                    evaluator.record_event(AgentEvent.LLM_QUERY_START, {
+                        'timestamp': llm_start_time,
+                        'model_name': model
+                    })
+                except Exception as rec_e:
+                    print(f"[Evaluator Error] Failed to record LLM_QUERY_START: {rec_e}")
+
             try:
                 provider_response = await adapter.invoke(request)
+                first_token_time = time.time()
                 print("[DEBUG] sampling_loop: provider response received", flush=True)
+
+                # Record first token received timestamp
+                if evaluator and evaluator_task_id and AgentEvent:
+                    try:
+                        evaluator.record_event(AgentEvent.LLM_FIRST_TOKEN_RECEIVED, {
+                            'timestamp': first_token_time
+                        })
+                    except Exception as rec_e:
+                        print(f"[Evaluator Error] Failed to record LLM_FIRST_TOKEN_RECEIVED: {rec_e}")
             except (
                 APIStatusError,
                 APIResponseValidationError,
                 APIError,
                 httpx.HTTPError,
                 ValueError,
-            ):
+            ) as llm_error:
+                # Record LLM query end (error)
+                if evaluator and evaluator_task_id and AgentEvent:
+                    try:
+                        evaluator.record_event(AgentEvent.LLM_QUERY_END, {
+                            'timestamp': time.time(),
+                            'status': 'error',
+                            'error': str(llm_error),
+                            'prompt_tokens': None,
+                            'completion_tokens': None,
+                            'cost': None
+                        })
+                    except Exception as rec_e:
+                        print(f"[Evaluator Error] Failed to record LLM_QUERY_END: {rec_e}")
                 return messages
 
             assistant_message = adapter.parse_response(provider_response)
+
+            # Record LLM query end (success) - after parsing to extract usage data
+            if evaluator and evaluator_task_id and AgentEvent:
+                try:
+                    usage_data = assistant_message.metadata.get("usage", {})
+                    evaluator.record_event(AgentEvent.LLM_QUERY_END, {
+                        'timestamp': time.time(),
+                        'status': 'success',
+                        'error': None,
+                        'prompt_tokens': usage_data.get('input_tokens'),
+                        'completion_tokens': usage_data.get('output_tokens'),
+                        'cost': None  # TODO: Calculate cost based on model pricing
+                    })
+                except Exception as rec_e:
+                    print(f"[Evaluator Error] Failed to record LLM_QUERY_END: {rec_e}")
             _ensure_explanatory_text(assistant_message)
             assistant_beta = _conversation_message_to_beta(assistant_message)
             messages.append(assistant_beta)

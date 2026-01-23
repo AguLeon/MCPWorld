@@ -215,6 +215,15 @@ class OpenAIAdapter(BaseProviderAdapter):
             "finish_reason"
         )
         assistant_message.metadata["raw_response"] = response.payload
+
+        # Extract usage data from the response (OpenAI format)
+        usage = response.payload.get("usage", {})
+        if usage:
+            assistant_message.metadata["usage"] = {
+                "input_tokens": usage.get("prompt_tokens", 0),
+                "output_tokens": usage.get("completion_tokens", 0),
+            }
+
         return assistant_message
 
     @property
