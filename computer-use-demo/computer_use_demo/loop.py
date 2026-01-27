@@ -99,7 +99,7 @@ SYSTEM_PROMPT = f"""<SYSTEM_CAPABILITY>
 * When using your bash tool with commands that are expected to output very large quantities of text, redirect into a tmp file and use str_replace_editor or `grep -n -B <lines before> -A <lines after> <query> <filename>` to confirm output.
 * When viewing a page it can be helpful to zoom out so that you can see everything on the page.  Either that, or make sure you scroll down to see everything before deciding something isn't available.
 * When using your computer function calls, they take a while to run and send back to you.  Where possible/feasible, try to chain multiple of these calls all into one function calls request.
-* The current date is {datetime.today().strftime('%A, %B %-d, %Y')}.
+* The current date is {datetime.today().strftime("%A, %B %-d, %Y")}.
 </SYSTEM_CAPABILITY>
 
 <IMPORTANT>
@@ -115,7 +115,7 @@ SYSTEM_PROMPT_API_ONLY = f"""<SYSTEM_CAPABILITY>
 * You can feel free to install Ubuntu applications with your bash tool. Use curl instead of wget.
 * When using your bash tool with commands that are expected to output very large quantities of text, redirect into a tmp file and use str_replace_editor or `grep -n -B <lines before> -A <lines after> <query> <filename>` to confirm output.
 * When using your computer function calls, they take a while to run and send back to you.  Where possible/feasible, try to chain multiple of these calls all into one function calls request.
-* The current date is {datetime.today().strftime('%A, %B %-d, %Y')}.
+* The current date is {datetime.today().strftime("%A, %B %-d, %Y")}.
 </SYSTEM_CAPABILITY>
 
 <IMPORTANT>
@@ -130,7 +130,7 @@ SYSTEM_PROMPT_NO_BASH = f"""<SYSTEM_CAPABILITY>
 * To open firefox, please just click on the firefox icon.  Note, firefox-esr is what is installed on your system.
 * When viewing a page it can be helpful to zoom out so that you can see everything on the page.  Either that, or make sure you scroll down to see everything before deciding something isn't available.
 * When using your computer function calls, they take a while to run and send back to you.  Where possible/feasible, try to chain multiple of these calls all into one function calls request.
-* The current date is {datetime.today().strftime('%A, %B %-d, %Y')}.
+* The current date is {datetime.today().strftime("%A, %B %-d, %Y")}.
 </SYSTEM_CAPABILITY>
 
 <IMPORTANT>
@@ -143,7 +143,7 @@ SYSTEM_PROMPT_NO_BASH = f"""<SYSTEM_CAPABILITY>
 SYSTEM_PROMPT_NO_BASH_API_ONLY = f"""<SYSTEM_CAPABILITY>
 * You are utilising an Ubuntu virtual machine using {platform.machine()} architecture with internet access.
 * When using your computer function calls, they take a while to run and send back to you.  Where possible/feasible, try to chain multiple of these calls all into one function calls request.
-* The current date is {datetime.today().strftime('%A, %B %-d, %Y')}.
+* The current date is {datetime.today().strftime("%A, %B %-d, %Y")}.
 </SYSTEM_CAPABILITY>
 
 <IMPORTANT>
@@ -169,7 +169,7 @@ def _record_tool_call_start(
     evaluator: Optional[BaseEvaluator],
     task_id: Optional[str],
     tool_name: str,
-    tool_input: Dict[str, Any]
+    tool_input: Dict[str, Any],
 ):
     start_time = time.time()
     """Records the TOOL_CALL_START event if evaluator is enabled."""
@@ -181,10 +181,11 @@ def _record_tool_call_start(
                     "timestamp": start_time,
                     "tool_name": tool_name,
                     "args": tool_input,
-                }
+                },
             )
         except Exception as rec_e:
             print(f"[Evaluator Error] Failed to record TOOL_CALL_START: {rec_e}")
+
 
 def _record_tool_call_end(
     evaluator: Optional[BaseEvaluator],
@@ -219,13 +220,13 @@ def _record_tool_call_end(
             else:
                 event_data["result"] = tool_result.error
 
-            evaluator.record_event(
-                AgentEvent.TOOL_CALL_END,
-                event_data
-            )
+            evaluator.record_event(AgentEvent.TOOL_CALL_END, event_data)
         except Exception as rec_e:
             print(f"[Evaluator Error] Failed to record TOOL_CALL_END: {rec_e}")
+
+
 # --- End Evaluator Helper Functions ---
+
 
 async def _auto_save_if_possible(
     tool_collection: ToolCollection,
@@ -313,7 +314,9 @@ async def sampling_loop(
                 SYSTEM_PROMPT_API_ONLY if active_exec_mode == "api" else SYSTEM_PROMPT
             )
         # Always append task completion guidelines for better verification behavior
-        system_prompt_with_completion = f"{base_system_prompt}\n{TASK_COMPLETION_GUIDELINES}"
+        system_prompt_with_completion = (
+            f"{base_system_prompt}\n{TASK_COMPLETION_GUIDELINES}"
+        )
         system_prompt_text = (
             f"{system_prompt_with_completion} {system_prompt_suffix}"
             if system_prompt_suffix
@@ -376,7 +379,7 @@ async def sampling_loop(
                 base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
                 endpoint = os.getenv("OPENAI_ENDPOINT", "/v1/chat/completions")
                 tool_choice = os.getenv("OPENAI_TOOL_CHOICE", "auto")
-                timeout_env = os.getenv("OPENAI_TIMEOUT")
+                timeout_env = os.getenv("OPENAI_TIMEOUT", 1000)
                 response_format = os.getenv("OPENAI_RESPONSE_FORMAT")
 
                 provider_extra_options.update(
@@ -415,12 +418,14 @@ async def sampling_loop(
             llm_start_time = time.time()
             if evaluator and evaluator_task_id and AgentEvent:
                 try:
-                    evaluator.record_event(AgentEvent.LLM_QUERY_START, {
-                        'timestamp': llm_start_time,
-                        'model_name': model
-                    })
+                    evaluator.record_event(
+                        AgentEvent.LLM_QUERY_START,
+                        {"timestamp": llm_start_time, "model_name": model},
+                    )
                 except Exception as rec_e:
-                    print(f"[Evaluator Error] Failed to record LLM_QUERY_START: {rec_e}")
+                    print(
+                        f"[Evaluator Error] Failed to record LLM_QUERY_START: {rec_e}"
+                    )
 
             try:
                 provider_response = await adapter.invoke(request)
@@ -430,11 +435,14 @@ async def sampling_loop(
                 # Record first token received timestamp
                 if evaluator and evaluator_task_id and AgentEvent:
                     try:
-                        evaluator.record_event(AgentEvent.LLM_FIRST_TOKEN_RECEIVED, {
-                            'timestamp': first_token_time
-                        })
+                        evaluator.record_event(
+                            AgentEvent.LLM_FIRST_TOKEN_RECEIVED,
+                            {"timestamp": first_token_time},
+                        )
                     except Exception as rec_e:
-                        print(f"[Evaluator Error] Failed to record LLM_FIRST_TOKEN_RECEIVED: {rec_e}")
+                        print(
+                            f"[Evaluator Error] Failed to record LLM_FIRST_TOKEN_RECEIVED: {rec_e}"
+                        )
             except (
                 APIStatusError,
                 APIResponseValidationError,
@@ -445,16 +453,21 @@ async def sampling_loop(
                 # Record LLM query end (error)
                 if evaluator and evaluator_task_id and AgentEvent:
                     try:
-                        evaluator.record_event(AgentEvent.LLM_QUERY_END, {
-                            'timestamp': time.time(),
-                            'status': 'error',
-                            'error': str(llm_error),
-                            'prompt_tokens': None,
-                            'completion_tokens': None,
-                            'cost': None
-                        })
+                        evaluator.record_event(
+                            AgentEvent.LLM_QUERY_END,
+                            {
+                                "timestamp": time.time(),
+                                "status": "error",
+                                "error": str(llm_error),
+                                "prompt_tokens": None,
+                                "completion_tokens": None,
+                                "cost": None,
+                            },
+                        )
                     except Exception as rec_e:
-                        print(f"[Evaluator Error] Failed to record LLM_QUERY_END: {rec_e}")
+                        print(
+                            f"[Evaluator Error] Failed to record LLM_QUERY_END: {rec_e}"
+                        )
                 return messages
 
             assistant_message = adapter.parse_response(provider_response)
@@ -463,14 +476,17 @@ async def sampling_loop(
             if evaluator and evaluator_task_id and AgentEvent:
                 try:
                     usage_data = assistant_message.metadata.get("usage", {})
-                    evaluator.record_event(AgentEvent.LLM_QUERY_END, {
-                        'timestamp': time.time(),
-                        'status': 'success',
-                        'error': None,
-                        'prompt_tokens': usage_data.get('input_tokens'),
-                        'completion_tokens': usage_data.get('output_tokens'),
-                        'cost': None  # TODO: Calculate cost based on model pricing
-                    })
+                    evaluator.record_event(
+                        AgentEvent.LLM_QUERY_END,
+                        {
+                            "timestamp": time.time(),
+                            "status": "success",
+                            "error": None,
+                            "prompt_tokens": usage_data.get("input_tokens"),
+                            "completion_tokens": usage_data.get("output_tokens"),
+                            "cost": None,  # TODO: Calculate cost based on model pricing
+                        },
+                    )
                 except Exception as rec_e:
                     print(f"[Evaluator Error] Failed to record LLM_QUERY_END: {rec_e}")
             _ensure_explanatory_text(assistant_message)
@@ -485,7 +501,10 @@ async def sampling_loop(
             ]
 
             if not tool_call_segments:
-                if _looks_like_refusal(assistant_message) and refusal_retries < MAX_PROVIDER_REFUSALS:
+                if (
+                    _looks_like_refusal(assistant_message)
+                    and refusal_retries < MAX_PROVIDER_REFUSALS
+                ):
                     refusal_retries += 1
                     messages.append(
                         {
@@ -496,7 +515,9 @@ async def sampling_loop(
                         }
                     )
                     continue
-                await _auto_save_if_possible(tool_collection, evaluator, evaluator_task_id)
+                await _auto_save_if_possible(
+                    tool_collection, evaluator, evaluator_task_id
+                )
                 return messages
 
             refusal_retries = 0
@@ -554,9 +575,7 @@ def _ensure_explanatory_text(message: ConversationMessage) -> None:
         for segment in message.segments
     )
     tool_segments = [
-        segment
-        for segment in message.segments
-        if isinstance(segment, ToolCallSegment)
+        segment for segment in message.segments if isinstance(segment, ToolCallSegment)
     ]
 
     if has_text or not tool_segments:
@@ -591,9 +610,7 @@ def _ensure_explanatory_text(message: ConversationMessage) -> None:
             path = args.get("path")
             command = args.get("command")
             if path and command:
-                explanations.append(
-                    f"Using editor tool '{command}' on path {path}."
-                )
+                explanations.append(f"Using editor tool '{command}' on path {path}.")
             else:
                 explanations.append("Using editor tool with provided arguments.")
         else:
