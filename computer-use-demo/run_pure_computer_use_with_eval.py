@@ -339,7 +339,7 @@ if __name__ == "__main__":
     parser.add_argument("--log_dir", type=str, default="logs_computer_use_eval", help="Directory for evaluator logs and results")
     parser.add_argument("--app_path", type=str, default=None, help="Path to specific application if required by the task")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TASK_TIMEOUT, help="Overall execution timeout in seconds (default: 600)")
-    parser.add_argument("--exec_mode", type=str, choices=["mixed", "gui", "api"], default="mixed", 
+    parser.add_argument("--exec_mode", type=str, choices=["mixed", "gui", "api"], default="mixed",
                         help="Agent mode for tool use evaluation (default: mixed)")
 
     args = parser.parse_args()
@@ -373,7 +373,7 @@ if __name__ == "__main__":
         tool_choice = args.openai_tool_choice or os.getenv("OPENAI_TOOL_CHOICE", "auto")
         if tool_choice not in {"auto", "none"}:
             tool_choice = "auto"
-        timeout = args.openai_timeout
+        timeout = args.openai_timeout or 1000.00
         if timeout is None:
             timeout_env = os.getenv("OPENAI_TIMEOUT")
             if timeout_env:
@@ -404,7 +404,7 @@ if __name__ == "__main__":
             print("Error: Anthropic API key must be provided (--api_key or ANTHROPIC_API_KEY environment variable)")
             sys.exit(1)
         args.resolved_api_key = api_key
-    
+
     if not os.getenv("DISPLAY"):
         print("Error: DISPLAY environment variable must be provided")
         sys.exit(1)

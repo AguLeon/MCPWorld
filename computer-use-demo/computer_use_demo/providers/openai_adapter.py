@@ -28,7 +28,9 @@ class OpenAIProviderRequest:
     headers: Dict[str, str]
     payload: Dict[str, Any]
     api_response_callback: Optional[
-        Callable[[httpx.Request, httpx.Response | object | None, Exception | None], None]
+        Callable[
+            [httpx.Request, httpx.Response | object | None, Exception | None], None
+        ]
     ] = None
     timeout: Optional[float] = None
 
@@ -51,12 +53,8 @@ class OpenAIAdapter(BaseProviderAdapter):
         tools: List[ToolSpec],
         options: ProviderOptions,
     ) -> ProviderRequest:
-        base_url: str = options.extra_options.get(
-            "base_url", "https://api.openai.com"
-        )
-        endpoint: str = options.extra_options.get(
-            "endpoint", "/v1/chat/completions"
-        )
+        base_url: str = options.extra_options.get("base_url", "https://api.openai.com")
+        endpoint: str = options.extra_options.get("endpoint", "/v1/chat/completions")
         url = f"{base_url.rstrip('/')}{endpoint}"
 
         system_prompts = options.extra_options.get(
@@ -69,17 +67,11 @@ class OpenAIAdapter(BaseProviderAdapter):
         if system_prompts:
             for prompt in system_prompts:
                 if prompt:
-                    messages_payload.append(
-                        {"role": "system", "content": prompt}
-                    )
+                    messages_payload.append({"role": "system", "content": prompt})
 
-        messages_payload.extend(
-            _transcript_to_openai_messages(transcript.messages)
-        )
+        messages_payload.extend(_transcript_to_openai_messages(transcript.messages))
 
-        tools_payload = [
-            _tool_spec_to_openai(tool_spec) for tool_spec in tools
-        ]
+        tools_payload = [_tool_spec_to_openai(tool_spec) for tool_spec in tools]
         payload: Dict[str, Any] = {
             "model": options.model,
             "messages": messages_payload,
@@ -88,9 +80,7 @@ class OpenAIAdapter(BaseProviderAdapter):
         }
         if tools_payload:
             payload["tools"] = tools_payload
-            payload["tool_choice"] = options.extra_options.get(
-                "tool_choice", "auto"
-            )
+            payload["tool_choice"] = options.extra_options.get("tool_choice", "auto")
 
         response_format = options.extra_options.get("response_format")
         if response_format:
@@ -103,9 +93,7 @@ class OpenAIAdapter(BaseProviderAdapter):
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
 
-        extra_headers: Dict[str, str] = options.extra_options.get(
-            "headers", {}
-        )
+        extra_headers: Dict[str, str] = options.extra_options.get("headers", {})
         headers.update(extra_headers or {})
 
         timeout = options.extra_options.get("timeout")
@@ -114,16 +102,14 @@ class OpenAIAdapter(BaseProviderAdapter):
             url=url,
             headers=headers,
             payload=payload,
-            api_response_callback=options.extra_options.get(
-                "api_response_callback"
-            ),
+            api_response_callback=options.extra_options.get("api_response_callback"),
             timeout=timeout,
         )
 
     async def invoke(self, request: ProviderRequest) -> ProviderResponse:
         assert isinstance(request, OpenAIProviderRequest)
         try:
-            async with httpx.AsyncClient(timeout=request.timeout) as client:
+            async with httpx.AsyncClient(timeout=request.timeout or 1000.0) as client:
                 response = await client.post(
                     request.url,
                     headers=request.headers,
@@ -211,9 +197,7 @@ class OpenAIAdapter(BaseProviderAdapter):
         for segment in segments:
             assistant_message.append(segment)
 
-        assistant_message.metadata["finish_reason"] = choices[0].get(
-            "finish_reason"
-        )
+        assistant_message.metadata["finish_reason"] = choices[0].get("finish_reason")
         assistant_message.metadata["raw_response"] = response.payload
 
         # Extract usage data from the response (OpenAI format)
@@ -258,7 +242,9 @@ def _tool_block_to_segment(block: Dict[str, Any]) -> Optional[ToolCallSegment]:
     if block_type not in {"tool_call", "function"}:
         return None
 
-    tool_payload = block.get("function") if isinstance(block.get("function"), dict) else block
+    tool_payload = (
+        block.get("function") if isinstance(block.get("function"), dict) else block
+    )
     tool_name = (
         block.get("name")
         or block.get("tool_name")
@@ -266,7 +252,9 @@ def _tool_block_to_segment(block: Dict[str, Any]) -> Optional[ToolCallSegment]:
         or ""
     )
     if not tool_name:
-        inferred = _infer_tool_name(tool_payload if isinstance(tool_payload, dict) else block)
+        inferred = _infer_tool_name(
+            tool_payload if isinstance(tool_payload, dict) else block
+        )
         tool_name = inferred or ""
     if not tool_name:
         return None
@@ -426,7 +414,11 @@ def _infer_tool_name(block: Dict[str, Any]) -> Optional[str]:
         return None
 
     param_keys = {key.lower() for key in params.keys()}
-    if {"action"} & param_keys or {"coordinate", "scroll_amount", "scroll_direction"} & param_keys:
+    if {"action"} & param_keys or {
+        "coordinate",
+        "scroll_amount",
+        "scroll_direction",
+    } & param_keys:
         return "computer"
     if "path" in param_keys and "command" in param_keys:
         return "str_replace_editor"
