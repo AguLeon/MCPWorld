@@ -42,7 +42,31 @@ cd "$REPO_ROOT"
 
 CONFIG_FILE="/workspace/scripts/config.cfg"
 
+# Preserve ONLY MODEL and INFRASTRUCTURE_TAG if already set (from parent script)
+# CRITICAL: All other parameters (PROVIDER, OPENAI_BASE_URL, EXEC_MODE, etc.)
+# MUST come from config.cfg and should NOT be overridden
+SAVED_MODEL="${MODEL:-}"
+SAVED_INFRA_TAG="${INFRASTRUCTURE_TAG:-}"
+
+# Source config.cfg - loads all critical parameters
+# PROVIDER, OPENAI_BASE_URL, OPENAI_ENDPOINT, EXEC_MODE, timeouts always use config.cfg values
 source "$CONFIG_FILE"
+
+# Restore ONLY MODEL and INFRASTRUCTURE_TAG if set by parent script
+# This allows run_multi_model_benchmark.sh to override the model being tested
+if [[ -n "$SAVED_MODEL" ]]; then
+    MODEL="$SAVED_MODEL"
+fi
+if [[ -n "$SAVED_INFRA_TAG" ]]; then
+    INFRASTRUCTURE_TAG="$SAVED_INFRA_TAG"
+fi
+
+# Export variables for Python code to access via os.environ
+export MODEL                # May be overridden by parent script
+export PROVIDER             # Always from config.cfg
+export OPENAI_BASE_URL      # Always from config.cfg
+export OPENAI_ENDPOINT      # Always from config.cfg
+export INFRASTRUCTURE_TAG   # May be overridden by parent script
 
 TASK_TIMEOUT=${TASK_TIMEOUT:-600}
 TOTAL_TIMEOUT=${TOTAL_TIMEOUT:-$TASK_TIMEOUT}
@@ -69,6 +93,18 @@ SUMMARY_FILE="$LOG_ROOT/${SUITE}_batch_summary.csv"
 METRICS_FILE="$LOG_ROOT/${SUITE}_metrics.csv"
 
 mkdir -p "$LOG_ROOT"
+
+# Generate run-level timestamp (once per batch)
+RUN_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+# Clean model name (replace : with -)
+CLEAN_MODEL_NAME=$(echo "$MODEL" | tr ':' '-')
+
+# Create intermediate run folder with model name and infrastructure tag
+INFRASTRUCTURE_SUFFIX="${INFRASTRUCTURE_TAG:+_${INFRASTRUCTURE_TAG}}"
+RUN_FOLDER="${LOG_ROOT}/${CLEAN_MODEL_NAME}${INFRASTRUCTURE_SUFFIX}_run_${RUN_TIMESTAMP}"
+mkdir -p "$RUN_FOLDER"
+
 printf "task_id,status,reason,log_dir\n" >"$SUMMARY_FILE"
 printf "task_id,status,reason,total_duration_seconds,llm_call_count,total_tool_calls,total_error_count,total_steps,completed_steps,log_dir\n" >"$METRICS_FILE"
 
@@ -91,9 +127,10 @@ for idx in $(seq "$START" "$END"); do
     task_dir=${TASK_DIRS[$((idx - 1))]}
     task_name=$(basename "$task_dir")
     TASK_ID="$SUITE/$task_name"
-    run_timestamp=$(date +%Y%m%d_%H%M%S)
-    RUN_LOG_DIR="$LOG_ROOT/${run_timestamp}_${SUITE}_${task_name}_${idx}"
-    mkdir -p "$RUN_LOG_DIR"
+    # Create task folder inside the run folder
+    TASK_FOLDER="${RUN_FOLDER}/${task_name}_${CLEAN_MODEL_NAME}${INFRASTRUCTURE_SUFFIX}"
+    mkdir -p "$TASK_FOLDER"
+    RUN_LOG_DIR="$TASK_FOLDER"
 
     echo ">>> Running $TASK_ID"
 
