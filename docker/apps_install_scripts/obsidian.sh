@@ -5,7 +5,7 @@ sudo apt update
 sudo apt install -y fuse libfuse2
 
 # Download the obsidian AppImage
-wget https://github.com/obsidianmd/obsidian-releases/releases/download/v1.7.7/Obsidian-1.7.7.AppImage -O ~/Obsidian.AppImage
+wget -4 https://github.com/obsidianmd/obsidian-releases/releases/download/v1.7.7/Obsidian-1.7.7.AppImage -O ~/Obsidian.AppImage
 
 chmod +x ~/Obsidian.AppImage
 
