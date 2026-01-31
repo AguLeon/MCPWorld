@@ -67,6 +67,7 @@ export PROVIDER             # Always from config.cfg
 export OPENAI_BASE_URL      # Always from config.cfg
 export OPENAI_ENDPOINT      # Always from config.cfg
 export INFRASTRUCTURE_TAG   # May be overridden by parent script
+export MAX_LLM_CALLS        # Always from config.cfg
 
 TASK_TIMEOUT=${TASK_TIMEOUT:-600}
 TOTAL_TIMEOUT=${TOTAL_TIMEOUT:-$TASK_TIMEOUT}
@@ -134,14 +135,46 @@ for idx in $(seq "$START" "$END"); do
 
     echo ">>> Running $TASK_ID"
 
-    # Ensure the VS Code IPC port is free before starting a new evaluator run
-    if command -v fuser >/dev/null 2>&1; then
-        fuser -k 5000/tcp >/dev/null 2>&1 || true
+    # Ensure VSCode is fully stopped from previous task
+    # Check for any lingering code-oss processes
+    if pgrep -f "code-oss.*vscode_user_data_dir" >/dev/null 2>&1; then
+        echo "[WARN] VSCode processes still running from previous task, cleaning up..."
+
+        # Try SIGTERM first (graceful)
+        pkill -15 -f "code-oss.*vscode_user_data_dir" 2>/dev/null || true
+
+        # Wait up to 10 seconds for processes to exit
+        for i in {1..10}; do
+            if ! pgrep -f "code-oss.*vscode_user_data_dir" >/dev/null 2>&1; then
+                echo "[INFO] VSCode processes exited after ${i} seconds"
+                break
+            fi
+            sleep 1
+        done
+
+        # If still running, force kill
+        if pgrep -f "code-oss.*vscode_user_data_dir" >/dev/null 2>&1; then
+            echo "[WARN] VSCode processes still running after 10s, force killing..."
+            pkill -9 -f "code-oss.*vscode_user_data_dir" 2>/dev/null || true
+            sleep 2
+        fi
+    fi
+
+    # Also ensure port 5000 is free
+    if command -v fuser >/dev/null 2>&1 && fuser 5000/tcp >/dev/null 2>&1; then
+        echo "[WARN] Port 5000 still in use, cleaning up..."
+        fuser -k -TERM 5000/tcp >/dev/null 2>&1 || true
+        sleep 2
+        # Force kill if still in use
+        fuser -k -KILL 5000/tcp >/dev/null 2>&1 || true
         sleep 1
     fi
 
+    # Extra safety: wait a moment for file system to settle
+    sleep 1
+
     set +e
-    printf "\nquit\n" | timeout --preserve-status "$TOTAL_TIMEOUT" python3 computer-use-demo/run_pure_computer_use_with_eval.py \
+    timeout --preserve-status "$TOTAL_TIMEOUT" python3 computer-use-demo/run_pure_computer_use_with_eval.py \
         --provider "$PROVIDER" \
         --openai_api_key dummy \
         --openai_base_url "$OPENAI_BASE_URL" \
@@ -151,7 +184,8 @@ for idx in $(seq "$START" "$END"); do
         --log_dir "$RUN_LOG_DIR" \
         --exec_mode "$EXEC_MODE" \
         --timeout "$TASK_TIMEOUT" \
-        --api_key "$ANTHROPIC_API_KEY"
+        --api_key "$ANTHROPIC_API_KEY" \
+        --auto-accept-default
     TASK_EXIT=$?
     set -e
 

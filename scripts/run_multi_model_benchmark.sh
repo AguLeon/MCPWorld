@@ -13,35 +13,75 @@
 #   ./run_multi_model_benchmark.sh                      # Both with default tag
 set -euo pipefail
 
+# Configuration (must be before cleanup function)
+OLLAMA_CONTAINER="ollama"
+MCPWORLD_CONTAINER="mcpworld"
+
+# Cleanup function to kill all running processes in container and on host
+cleanup_on_exit() {
+    echo ""
+    echo "=========================================="
+    echo "Cleaning up processes..."
+    echo "=========================================="
+
+    # Clean up container processes with graceful shutdown first
+    echo "Sending SIGTERM for graceful shutdown..."
+    docker exec "$MCPWORLD_CONTAINER" bash -c "pkill -15 -f 'python.*run_pure_computer_use|bash.*run_tasks_range' || true" 2>/dev/null || true
+
+    # Wait briefly for graceful shutdown
+    sleep 2
+
+    # Force kill any remaining processes
+    echo "Force killing remaining processes..."
+    docker exec "$MCPWORLD_CONTAINER" bash -c "pkill -9 -f 'python.*run_pure_computer_use|bash.*run_tasks_range' || true" 2>/dev/null || true
+
+    # Kill any docker exec processes on host (graceful first)
+    pkill -15 -f 'docker exec.*mcpworld.*run_tasks_range' 2>/dev/null || true
+    sleep 1
+    pkill -9 -f 'docker exec.*mcpworld.*run_tasks_range' 2>/dev/null || true
+
+    # Kill any background jobs started by this script
+    jobs -p | xargs -r kill -15 2>/dev/null || true
+    sleep 1
+    jobs -p | xargs -r kill -9 2>/dev/null || true
+
+    echo "Cleanup complete."
+}
+
+# Set up trap to cleanup on Ctrl+C, termination, or exit
+trap cleanup_on_exit SIGINT SIGTERM EXIT
+
 # Parse arguments
 BENCHMARK_TYPE="${1:-both}"
 INFRASTRUCTURE_TAG="${2:-default}"
 
 case "$BENCHMARK_TYPE" in
-    vscode|obsidian|both)
-        ;;
-    *)
-        echo "ERROR: Invalid benchmark type '$BENCHMARK_TYPE'"
-        echo "Usage: $0 [vscode|obsidian|both] [infrastructure_tag]"
-        exit 1
-        ;;
+vscode | obsidian | both) ;;
+*)
+    echo "ERROR: Invalid benchmark type '$BENCHMARK_TYPE'"
+    echo "Usage: $0 [vscode|obsidian|both] [infrastructure_tag]"
+    exit 1
+    ;;
 esac
-
-# Configuration
-OLLAMA_CONTAINER="ollama"
-MCPWORLD_CONTAINER="mcpworld"
 
 # Task ranges for each app
 VSCODE_START=1
 VSCODE_END=25
 OBSIDIAN_START=1
-OBSIDIAN_END=2
+OBSIDIAN_END=12
 
 # Define models to benchmark (edit this list as needed)
 MODELS=(
-    # "qwen3-vl:2b"
+    # "qwen3-vl:32b-instruct"
+    # "qwen3-vl:32b"
+    "qwen3-vl:235b-a22b-instruct"
+    # "qwen3-vl:235b"
+    # "ministral-3:14b"
+    # "ministral-3:14b-instruct-2512-q8_0"
+    "gemma3:27b"
+    "gemma3:12b"
     "qwen3-vl:8b-instruct"
-    "qwen3-vl:32b-instruct"
+    "qwen3-vl:2b-instruct"
 )
 
 # You can also read from a file:
@@ -56,6 +96,12 @@ echo "Models to benchmark: ${MODELS[@]}"
 echo "Estimated time: ~30 min per model"
 echo "=========================================="
 echo ""
+
+# Function to check if ollama model exists in the system
+model_exists() {
+    local model=$1
+    docker exec "$OLLAMA_CONTAINER" sh -c "ollama list | tail -n +2 | awk '{print \$1}' | grep -q '^${model}\$'" 2>/dev/null
+}
 
 # Function to clean Ollama models
 clean_ollama() {
@@ -85,8 +131,8 @@ run_benchmark() {
     echo "[$(date +%H:%M:%S)] Starting benchmark for: $model (type: $bench_type, infrastructure: $infra_tag)"
 
     case "$bench_type" in
-        vscode)
-            docker exec -i "$MCPWORLD_CONTAINER" bash -c "
+    vscode)
+        docker exec "$MCPWORLD_CONTAINER" bash -c "
                 export PATH='/home/agent/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' &&
                 export DISPLAY=:4 &&
                 export MODEL='$model' &&
@@ -94,12 +140,12 @@ run_benchmark() {
                 cd /workspace &&
                 ./scripts/run_tasks_range.sh vscode $VSCODE_START $VSCODE_END
             " || {
-                echo "ERROR: VSCode benchmark failed for model $model"
-                return 1
-            }
-            ;;
-        obsidian)
-            docker exec -i "$MCPWORLD_CONTAINER" bash -c "
+            echo "ERROR: VSCode benchmark failed for model $model"
+            return 1
+        }
+        ;;
+    obsidian)
+        docker exec "$MCPWORLD_CONTAINER" bash -c "
                 export PATH='/home/agent/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' &&
                 export DISPLAY=:4 &&
                 export MODEL='$model' &&
@@ -107,12 +153,12 @@ run_benchmark() {
                 cd /workspace &&
                 ./scripts/run_tasks_range.sh obsidian $OBSIDIAN_START $OBSIDIAN_END
             " || {
-                echo "ERROR: Obsidian benchmark failed for model $model"
-                return 1
-            }
-            ;;
-        both)
-            docker exec -i "$MCPWORLD_CONTAINER" bash -c "
+            echo "ERROR: Obsidian benchmark failed for model $model"
+            return 1
+        }
+        ;;
+    both)
+        docker exec "$MCPWORLD_CONTAINER" bash -c "
                 export PATH='/home/agent/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' &&
                 export DISPLAY=:4 &&
                 export MODEL='$model' &&
@@ -120,12 +166,12 @@ run_benchmark() {
                 cd /workspace &&
                 ./scripts/run_tasks_range.sh vscode $VSCODE_START $VSCODE_END
             " || {
-                echo "ERROR: VSCode benchmark failed for model $model"
-                return 1
-            }
-            echo "[$(date +%H:%M:%S)] VSCode completed, waiting 5s before Obsidian..."
-            sleep 5
-            docker exec -i "$MCPWORLD_CONTAINER" bash -c "
+            echo "ERROR: VSCode benchmark failed for model $model"
+            return 1
+        }
+        echo "[$(date +%H:%M:%S)] VSCode completed, waiting 5s before Obsidian..."
+        sleep 5
+        docker exec "$MCPWORLD_CONTAINER" bash -c "
                 export PATH='/home/agent/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' &&
                 export DISPLAY=:4 &&
                 export MODEL='$model' &&
@@ -133,10 +179,10 @@ run_benchmark() {
                 cd /workspace &&
                 ./scripts/run_tasks_range.sh obsidian $OBSIDIAN_START $OBSIDIAN_END
             " || {
-                echo "ERROR: Obsidian benchmark failed for model $model"
-                return 1
-            }
-            ;;
+            echo "ERROR: Obsidian benchmark failed for model $model"
+            return 1
+        }
+        ;;
     esac
 
     echo "[$(date +%H:%M:%S)] Benchmark completed for: $model"
@@ -154,7 +200,7 @@ for model in "${MODELS[@]}"; do
     echo "Processing model $CURRENT/$TOTAL_MODELS: $model"
     echo "=========================================="
 
-    # Step 1: Clean Ollama
+    # Step 1: Always clean Ollama to ensure fresh state
     clean_ollama
 
     # Step 2: Load model
@@ -162,6 +208,11 @@ for model in "${MODELS[@]}"; do
 
     # Step 3: Run benchmark
     run_benchmark "$model" "$BENCHMARK_TYPE" "$INFRASTRUCTURE_TAG" || continue
+
+    # Step 4: Clean up container state
+    echo "[$(date +%H:%M:%S)] Cleaning up container state..."
+    docker exec "$MCPWORLD_CONTAINER" bash -c "pkill -f 'code-server|obsidian|python.*run_pure_computer_use' || true" 2>/dev/null || true
+    sleep 2
 
     echo "[$(date +%H:%M:%S)] ✓ Completed: $model ($CURRENT/$TOTAL_MODELS)"
     echo ""

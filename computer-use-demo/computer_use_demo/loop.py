@@ -41,6 +41,7 @@ from .tools import (
     ToolResult,
     ToolVersion,
 )
+from .utils import _normalize_tool_call, _detect_tool_call_loop
 
 from .mcpclient import MCPClient
 
@@ -266,6 +267,8 @@ async def sampling_loop(
     thinking_budget: int | None = None,
     token_efficient_tools_beta: bool = False,
     exec_mode: str = "mixed",
+    max_repeated_tool_calls: int = 2,
+    max_llm_calls: int | None = None,
 ):
     """
     Agentic sampling loop for the assistant/tool interaction of computer use.
@@ -278,6 +281,7 @@ async def sampling_loop(
     mcp_servers = evaluator_config.get("mcp_servers", [])
     mcp_client = MCPClient()
     try:
+        tool_call_history: list[str] = []
         tool_group = TOOL_GROUPS_BY_VERSION[tool_version]
         allowed_exec_modes = {"mixed", "gui", "api"}
         active_exec_mode = exec_mode if exec_mode in allowed_exec_modes else "mixed"
@@ -326,8 +330,13 @@ async def sampling_loop(
 
         adapter = _PROVIDER_REGISTRY.create(provider.value)
         refusal_retries = 0
+        llm_call_count = 0  # Track number of LLM API calls made
 
         while not is_timeout():
+            # Check MAX_LLM_CALLS limit before making LLM call
+            if max_llm_calls is not None and llm_call_count >= max_llm_calls:
+                print(f"\n[INFO] Reached MAX_LLM_CALLS limit ({max_llm_calls}); stopping sampling loop.")
+                break
             enable_prompt_caching = provider == APIProvider.ANTHROPIC
             betas = [tool_group.beta_flag] if tool_group.beta_flag else []
             if token_efficient_tools_beta:
@@ -429,6 +438,7 @@ async def sampling_loop(
 
             try:
                 provider_response = await adapter.invoke(request)
+                llm_call_count += 1  # Increment LLM call counter
                 first_token_time = time.time()
                 print("[DEBUG] sampling_loop: provider response received", flush=True)
 
@@ -521,6 +531,51 @@ async def sampling_loop(
                 return messages
 
             refusal_retries = 0
+
+            # TOOL CALL LOOP DETECTION
+            # Add current tool calls to history
+            for segment in tool_call_segments:
+                normalized_call = _normalize_tool_call(
+                    segment.tool_name,
+                    cast(dict[str, Any], segment.arguments)
+                )
+                tool_call_history.append(normalized_call)
+
+            # Keep only recent history (last 10 calls)
+            if len(tool_call_history) > 10:
+                tool_call_history = tool_call_history[-10:]
+
+            # Check for loops
+            is_loop, loop_description = _detect_tool_call_loop(
+                tool_call_history,
+                max_repeated=max_repeated_tool_calls,
+            )
+
+            # LOOP DETECTION INTERVENTION DISABLED
+            # Loop detection still runs for logging/metrics, but does not intervene with execution
+            if is_loop:
+                print(f"Loop Detected?: {is_loop}")
+                print("*" * 50)
+                # Record loop detection in evaluator for metrics tracking
+                if evaluator and evaluator_task_id and AgentEvent:
+                    try:
+                        evaluator.record_event(
+                            AgentEvent.TOOL_CALL_END,
+                            {
+                                "timestamp": time.time(),
+                                "tool_name": "loop_detection",
+                                "success": True,
+                                "error": None,
+                                "result": loop_description,
+                            }
+                        )
+                    except Exception as rec_e:
+                        print(f"[Evaluator Error] Failed to record loop detection: {rec_e}")
+
+                # INTERVENTION DISABLED - no message injection, no history clearing, no continue
+                # Execution proceeds normally even when loops are detected
+            # LOOP DETECTION END
+
 
             for segment in assistant_message.segments:
                 beta_block = _segment_to_beta_block(segment)
