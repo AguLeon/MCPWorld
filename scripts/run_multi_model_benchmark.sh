@@ -68,20 +68,23 @@ esac
 VSCODE_START=1
 VSCODE_END=25
 OBSIDIAN_START=1
-OBSIDIAN_END=12
+OBSIDIAN_END=2
 
 # Define models to benchmark (edit this list as needed)
 MODELS=(
     # "qwen3-vl:32b-instruct"
     # "qwen3-vl:32b"
-    "qwen3-vl:235b-a22b-instruct"
+    # "qwen3-vl:235b-a22b-instruct"
     # "qwen3-vl:235b"
     # "ministral-3:14b"
-    # "ministral-3:14b-instruct-2512-q8_0"
-    "gemma3:27b"
-    "gemma3:12b"
-    "qwen3-vl:8b-instruct"
-    "qwen3-vl:2b-instruct"
+    # "ministral-3:8b-instruct-2512-fp16"
+    # "ministral-3:14b-instruct-2512-fp16"
+    # "gemma3:27b"
+    # "gemma3:12b"
+    # "qwen3-vl:8b-instruct"
+    # "qwen3-vl:2b-instruct"
+    # "devstral-small-2:24b"
+    "seamon67/Gemma3:27b"
 )
 
 # You can also read from a file:
@@ -206,10 +209,27 @@ for model in "${MODELS[@]}"; do
     # Step 2: Load model
     load_model "$model" || continue
 
-    # Step 3: Run benchmark
+    # Step 3: Start GPU monitoring on host
+    CLEAN_MODEL=$(echo "$model" | tr ':/' '-_')
+    INFRA_SUFFIX="${INFRASTRUCTURE_TAG:+_${INFRASTRUCTURE_TAG}}"
+    # Find the run folder that will be created by run_tasks_range.sh
+    # GPU CSV goes to a known location; result_collector will find it
+    GPU_LOG_DIR="logs_computer_use_eval/${BENCHMARK_TYPE}_runs/gpu_logs"
+    mkdir -p "$GPU_LOG_DIR"
+    GPU_LOG="${GPU_LOG_DIR}/gpu_metrics_${CLEAN_MODEL}${INFRA_SUFFIX}.csv"
+    python3 scripts/monitor_gpu.py "$GPU_LOG" 0.25 &
+    GPU_MONITOR_PID=$!
+    echo "[$(date +%H:%M:%S)] Started GPU monitoring (PID: $GPU_MONITOR_PID) -> $GPU_LOG"
+
+    # Step 4: Run benchmark
     run_benchmark "$model" "$BENCHMARK_TYPE" "$INFRASTRUCTURE_TAG" || continue
 
-    # Step 4: Clean up container state
+    # Step 5: Stop GPU monitoring
+    kill $GPU_MONITOR_PID 2>/dev/null || true
+    wait $GPU_MONITOR_PID 2>/dev/null || true
+    echo "[$(date +%H:%M:%S)] Stopped GPU monitoring -> $GPU_LOG"
+
+    # Step 6: Clean up container state
     echo "[$(date +%H:%M:%S)] Cleaning up container state..."
     docker exec "$MCPWORLD_CONTAINER" bash -c "pkill -f 'code-server|obsidian|python.*run_pure_computer_use' || true" 2>/dev/null || true
     sleep 2

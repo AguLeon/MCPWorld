@@ -99,7 +99,7 @@ mkdir -p "$LOG_ROOT"
 RUN_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 # Clean model name (replace : with -)
-CLEAN_MODEL_NAME=$(echo "$MODEL" | tr ':' '-')
+CLEAN_MODEL_NAME=$(echo "$MODEL" | tr ':/' '-_')
 
 # Create intermediate run folder with model name and infrastructure tag
 INFRASTRUCTURE_SUFFIX="${INFRASTRUCTURE_TAG:+_${INFRASTRUCTURE_TAG}}"
@@ -107,7 +107,7 @@ RUN_FOLDER="${LOG_ROOT}/${CLEAN_MODEL_NAME}${INFRASTRUCTURE_SUFFIX}_run_${RUN_TI
 mkdir -p "$RUN_FOLDER"
 
 printf "task_id,status,reason,log_dir\n" >"$SUMMARY_FILE"
-printf "task_id,status,reason,total_duration_seconds,llm_call_count,total_tool_calls,total_error_count,total_steps,completed_steps,log_dir\n" >"$METRICS_FILE"
+printf "task_id,status,reason,total_duration_seconds,llm_call_count,total_tool_calls,total_error_count,total_steps,completed_steps,avg_gpu_util_pct,max_gpu_util_pct,avg_vram_mb,peak_vram_mb,avg_temp_c,max_temp_c,avg_power_w,max_power_w,total_energy_joules,total_energy_kwh,avg_tokens_per_second,overall_tokens_per_second,total_completion_tokens,total_generation_time_sec,log_dir\n" >"$METRICS_FILE"
 
 mapfile -t TASK_DIRS < <(find "$TASK_ROOT" -maxdepth 1 -mindepth 1 -type d -name "task??_*" | sort)
 TOTAL_TASKS=${#TASK_DIRS[@]}
