@@ -305,6 +305,7 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
                 only_n_most_recent_images=None,
                 thinking_budget=None,
                 token_efficient_tools_beta=False,
+                temperature=float(os.environ.get("LLM_TEMPERATURE", 0.7)),
                 exec_mode=args.exec_mode,
                 max_llm_calls=max_llm_calls,  # Pass MAX_LLM_CALLS limit
             )

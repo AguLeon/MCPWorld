@@ -268,6 +268,7 @@ async def sampling_loop(
     token_efficient_tools_beta: bool = False,
     exec_mode: str = "mixed",
     max_repeated_tool_calls: int = 2,
+    temperature: float = 0.7,
     max_llm_calls: int | None = None,
 ):
     """
@@ -410,7 +411,7 @@ async def sampling_loop(
 
             options = ProviderOptions(
                 model=model,
-                temperature=0.0,
+                temperature=temperature,
                 max_output_tokens=max_tokens,
                 thinking_budget=thinking_budget,
                 extra_options=provider_extra_options,
