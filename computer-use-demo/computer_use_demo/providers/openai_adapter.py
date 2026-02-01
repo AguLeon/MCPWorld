@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterable, List, Optional
 from uuid import uuid4
@@ -82,6 +83,11 @@ class OpenAIAdapter(BaseProviderAdapter):
             payload["tools"] = tools_payload
             payload["tool_choice"] = options.extra_options.get("tool_choice", "auto")
 
+        # Enable logprobs for tool call confidence scoring
+        if options.extra_options.get("enable_logprobs", True):
+            payload["logprobs"] = True
+            payload["top_logprobs"] = options.extra_options.get("top_logprobs", 5)
+
         response_format = options.extra_options.get("response_format")
         if response_format:
             payload["response_format"] = response_format
@@ -162,6 +168,10 @@ class OpenAIAdapter(BaseProviderAdapter):
                     if tool_segment:
                         segments.append(tool_segment)
 
+        # Extract logprobs for confidence scoring
+        logprobs_data = choices[0].get("logprobs")
+        confidence = _extract_tool_confidence(logprobs_data)
+
         tool_calls = message_payload.get("tool_calls", [])
         for call in tool_calls or []:
             function = call.get("function", {})
@@ -170,11 +180,15 @@ class OpenAIAdapter(BaseProviderAdapter):
                 arguments = json.loads(raw_args)
             except json.JSONDecodeError:
                 arguments = {"raw": raw_args}
+            tc_metadata: Dict[str, Any] = {}
+            if confidence is not None:
+                tc_metadata["confidence"] = confidence
             segments.append(
                 ToolCallSegment(
                     tool_name=function.get("name", ""),
                     arguments=arguments or {},
                     call_id=call.get("id") or str(uuid4()),
+                    metadata=tc_metadata,
                 )
             )
 
@@ -213,6 +227,30 @@ class OpenAIAdapter(BaseProviderAdapter):
     @property
     def supports_thinking(self) -> bool:
         return False
+
+
+def _extract_tool_confidence(logprobs_data: Optional[Dict[str, Any]]) -> Optional[float]:
+    """Extract average token confidence from logprobs data.
+
+    Logprobs are in log space: logprob = log(probability).
+    Convert to probability: prob = e^(logprob).
+    Returns average probability across all tokens as a 0-1 confidence score.
+    Returns None if logprobs are unavailable or empty.
+    """
+    if not logprobs_data:
+        return None
+    content = logprobs_data.get("content")
+    if not content:
+        return None
+    token_probs: List[float] = []
+    for token_data in content:
+        logprob = token_data.get("logprob")
+        if logprob is not None:
+            prob = math.exp(logprob)
+            token_probs.append(min(prob, 1.0))
+    if not token_probs:
+        return None
+    return round(sum(token_probs) / len(token_probs), 4)
 
 
 def _maybe_tool_calls_from_content(content: str) -> List[ToolCallSegment]:

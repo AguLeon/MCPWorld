@@ -66,12 +66,14 @@ esac
 
 # Task ranges for each app
 VSCODE_START=1
-VSCODE_END=25
+VSCODE_END=10
 OBSIDIAN_START=1
 OBSIDIAN_END=2
 
 # Define models to benchmark (edit this list as needed)
 MODELS=(
+    # "qwen3-vl:2b-instruct"
+    "qwen3-vl:8b-instruct"
     # "qwen3-vl:32b-instruct"
     # "qwen3-vl:32b"
     # "qwen3-vl:235b-a22b-instruct"
@@ -79,12 +81,13 @@ MODELS=(
     # "ministral-3:14b"
     # "ministral-3:8b-instruct-2512-fp16"
     # "ministral-3:14b-instruct-2512-fp16"
-    # "gemma3:27b"
-    # "gemma3:12b"
-    # "qwen3-vl:8b-instruct"
-    # "qwen3-vl:2b-instruct"
     # "devstral-small-2:24b"
-    "seamon67/Gemma3:27b"
+    # "seamon67/Gemma3:27b"
+    # "gemma3-tools:4b"
+    # "gemma3-tools:12b"
+    # "gemma3-tools:27b"
+    # "llama4:17b-scout-16e-instruct-q4_K_M"
+    # "llama4:17b-scout-16e-instruct-q8_0"
 )
 
 # You can also read from a file:

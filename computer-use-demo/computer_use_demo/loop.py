@@ -171,19 +171,20 @@ def _record_tool_call_start(
     task_id: Optional[str],
     tool_name: str,
     tool_input: Dict[str, Any],
+    confidence: Optional[float] = None,
 ):
     start_time = time.time()
     """Records the TOOL_CALL_START event if evaluator is enabled."""
     if evaluator and task_id and AgentEvent:
         try:
-            evaluator.record_event(
-                AgentEvent.TOOL_CALL_START,
-                {
-                    "timestamp": start_time,
-                    "tool_name": tool_name,
-                    "args": tool_input,
-                },
-            )
+            event_data: Dict[str, Any] = {
+                "timestamp": start_time,
+                "tool_name": tool_name,
+                "args": tool_input,
+            }
+            if confidence is not None:
+                event_data["confidence"] = confidence
+            evaluator.record_event(AgentEvent.TOOL_CALL_START, event_data)
         except Exception as rec_e:
             print(f"[Evaluator Error] Failed to record TOOL_CALL_START: {rec_e}")
 
@@ -589,7 +590,8 @@ async def sampling_loop(
                     result: Optional[ToolResult] = None
 
                     _record_tool_call_start(
-                        evaluator, evaluator_task_id, tool_name, tool_input
+                        evaluator, evaluator_task_id, tool_name, tool_input,
+                        confidence=segment.metadata.get("confidence") if hasattr(segment, "metadata") else None,
                     )
 
                     if tool_name in tool_collection.tool_map.keys():

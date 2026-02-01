@@ -37,6 +37,12 @@ METRICS_HEADER = [
     "overall_tokens_per_second",
     "total_completion_tokens",
     "total_generation_time_sec",
+    "avg_tool_confidence",
+    "min_tool_confidence",
+    "avg_container_cpu_pct",
+    "max_container_cpu_pct",
+    "avg_container_mem_mb",
+    "peak_container_mem_mb",
     "log_dir",
 ]
 
@@ -89,6 +95,7 @@ def main() -> None:
     computed = result_data.get("computed_metrics", {}) or {}
     gpu = result_data.get("gpu_hardware_metrics", {}) or {}
     throughput = computed.get("throughput_metrics", {}) or {}
+    tool_confidence = computed.get("tool_confidence_metrics", {}) or {}
 
     status = computed.get("task_completion_status", {}).get("status") or args.fallback_status
     reason = computed.get("task_completion_status", {}).get("reason") or args.fallback_reason
@@ -135,6 +142,12 @@ def main() -> None:
         _sanitize(throughput.get("overall_tokens_per_second")),
         _sanitize(throughput.get("total_completion_tokens")),
         _sanitize(throughput.get("total_generation_time_sec")),
+        _sanitize(tool_confidence.get("avg_tool_confidence")),
+        _sanitize(tool_confidence.get("min_tool_confidence")),
+        _sanitize(gpu.get("avg_container_cpu_pct")),
+        _sanitize(gpu.get("max_container_cpu_pct")),
+        _sanitize(gpu.get("avg_container_mem_mb")),
+        _sanitize(gpu.get("peak_container_mem_mb")),
         _sanitize(args.log_dir),
     ]
 
