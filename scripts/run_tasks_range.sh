@@ -174,7 +174,7 @@ for idx in $(seq "$START" "$END"); do
     sleep 1
 
     set +e
-    timeout --preserve-status "$TOTAL_TIMEOUT" python3 computer-use-demo/run_pure_computer_use_with_eval.py \
+    timeout --preserve-status --kill-after=10 "$TOTAL_TIMEOUT" python3 computer-use-demo/run_pure_computer_use_with_eval.py \
         --provider "$PROVIDER" \
         --openai_api_key dummy \
         --openai_base_url "$OPENAI_BASE_URL" \
