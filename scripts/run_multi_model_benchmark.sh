@@ -65,7 +65,7 @@ vscode | obsidian | both) ;;
 esac
 
 # Task ranges for each app
-VSCODE_START=1
+VSCODE_START=5
 VSCODE_END=10
 OBSIDIAN_START=1
 OBSIDIAN_END=2
