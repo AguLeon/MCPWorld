@@ -72,11 +72,11 @@ OBSIDIAN_END=12
 
 # Define models to benchmark (edit this list as needed)
 MODELS=(
+    "qwen3-vl:8b-instruct"
     "qwen3-vl:235b-a22b-instruct"
     "qwen3-vl:235b"
     "qwen3-vl:32b"
     "qwen3-vl:32b-instruct"
-    "qwen3-vl:8b-instruct"
     "qwen3-vl:2b-instruct"
     "ministral-3:8b-instruct-2512-fp16"
     "ministral-3:14b-instruct-2512-fp16"
@@ -224,7 +224,7 @@ for model in "${MODELS[@]}"; do
     run_benchmark "$model" "$BENCHMARK_TYPE" "$INFRASTRUCTURE_TAG" || continue
 
     # Step 6: Clean up container state
-    docker exec "$MCPWORLD_CONTAINER" bash -c "pkill -f 'code-oss|obsidian|python.*run_pure_computer_use' || true" 2>/dev/null || true
+    docker exec "$MCPWORLD_CONTAINER" bash -c "pkill -f 'obsidian|python.*run_pure_computer_use' || true" 2>/dev/null || true
     sleep 2
 
     # Wipe VSCode user_data_dir to prevent SIGSEGV on next model's first task
