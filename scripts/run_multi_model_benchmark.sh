@@ -72,21 +72,21 @@ OBSIDIAN_END=12
 
 # Define models to benchmark (edit this list as needed)
 MODELS=(
-    # "qwen3-vl:235b-a22b-instruct"
-    # "qwen3-vl:235b"
-    # "qwen3-vl:32b"
-    # "qwen3-vl:32b-instruct"
+    "qwen3-vl:235b-a22b-instruct"
+    "qwen3-vl:235b"
+    "qwen3-vl:32b"
+    "qwen3-vl:32b-instruct"
     "qwen3-vl:8b-instruct"
-    # "qwen3-vl:2b-instruct"
-    # "ministral-3:8b-instruct-2512-fp16"
-    # "ministral-3:14b-instruct-2512-fp16"
-    # "devstral-small-2:24b"
-    # "seamon67/Gemma3:27b"
-    # "gemma3-tools:4b"
-    # "gemma3-tools:12b"
-    # "gemma3-tools:27b"
-    # "llama4:17b-scout-16e-instruct-q4_K_M"
-    # "llama4:17b-scout-16e-instruct-q8_0"
+    "qwen3-vl:2b-instruct"
+    "ministral-3:8b-instruct-2512-fp16"
+    "ministral-3:14b-instruct-2512-fp16"
+    "devstral-small-2:24b"
+    "seamon67/Gemma3:27b"
+    "gemma3-tools:4b"
+    "gemma3-tools:12b"
+    "gemma3-tools:27b"
+    "llama4:17b-scout-16e-instruct-q4_K_M"
+    "llama4:17b-scout-16e-instruct-q8_0"
 )
 
 # You can also read from a file:
@@ -128,6 +128,43 @@ load_model() {
     echo "[$(date +%H:%M:%S)] Model loaded: $model"
 }
 
+# GPU monitoring helpers (use CLEAN_MODEL and INFRA_SUFFIX from caller)
+start_gpu_monitor() {
+    local suite=$1
+    local gpu_log_dir="logs_computer_use_eval/${suite}_runs/gpu_logs"
+    mkdir -p "$gpu_log_dir"
+    GPU_LOG="${gpu_log_dir}/gpu_metrics_${CLEAN_MODEL}${INFRA_SUFFIX}.csv"
+    python3 scripts/monitor_gpu.py "$GPU_LOG" 0.25 &
+    GPU_MONITOR_PID=$!
+    echo "[$(date +%H:%M:%S)] Started GPU monitoring (PID: $GPU_MONITOR_PID) -> $GPU_LOG"
+}
+
+stop_gpu_monitor() {
+    kill $GPU_MONITOR_PID 2>/dev/null || true
+    wait $GPU_MONITOR_PID 2>/dev/null || true
+    echo "[$(date +%H:%M:%S)] Stopped GPU monitoring -> $GPU_LOG"
+}
+
+# Helper to run a single suite inside the container
+run_suite() {
+    local model=$1
+    local suite=$2
+    local infra_tag=$3
+    local start=$4
+    local end=$5
+    docker exec "$MCPWORLD_CONTAINER" bash -c "
+            export PATH='/home/agent/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' &&
+            export DISPLAY=:4 &&
+            export MODEL='$model' &&
+            export INFRASTRUCTURE_TAG='$infra_tag' &&
+            cd /workspace &&
+            ./scripts/run_tasks_range.sh $suite $start $end
+        " || {
+        echo "ERROR: $suite benchmark failed for model $model"
+        return 1
+    }
+}
+
 # Function to run benchmark
 run_benchmark() {
     local model=$1
@@ -137,56 +174,24 @@ run_benchmark() {
 
     case "$bench_type" in
     vscode)
-        docker exec "$MCPWORLD_CONTAINER" bash -c "
-                export PATH='/home/agent/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' &&
-                export DISPLAY=:4 &&
-                export MODEL='$model' &&
-                export INFRASTRUCTURE_TAG='$infra_tag' &&
-                cd /workspace &&
-                ./scripts/run_tasks_range.sh vscode $VSCODE_START $VSCODE_END
-            " || {
-            echo "ERROR: VSCode benchmark failed for model $model"
-            return 1
-        }
+        start_gpu_monitor vscode
+        run_suite "$model" vscode "$infra_tag" $VSCODE_START $VSCODE_END || { stop_gpu_monitor; return 1; }
+        stop_gpu_monitor
         ;;
     obsidian)
-        docker exec "$MCPWORLD_CONTAINER" bash -c "
-                export PATH='/home/agent/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' &&
-                export DISPLAY=:4 &&
-                export MODEL='$model' &&
-                export INFRASTRUCTURE_TAG='$infra_tag' &&
-                cd /workspace &&
-                ./scripts/run_tasks_range.sh obsidian $OBSIDIAN_START $OBSIDIAN_END
-            " || {
-            echo "ERROR: Obsidian benchmark failed for model $model"
-            return 1
-        }
+        start_gpu_monitor obsidian
+        run_suite "$model" obsidian "$infra_tag" $OBSIDIAN_START $OBSIDIAN_END || { stop_gpu_monitor; return 1; }
+        stop_gpu_monitor
         ;;
     both)
-        docker exec "$MCPWORLD_CONTAINER" bash -c "
-                export PATH='/home/agent/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' &&
-                export DISPLAY=:4 &&
-                export MODEL='$model' &&
-                export INFRASTRUCTURE_TAG='$infra_tag' &&
-                cd /workspace &&
-                ./scripts/run_tasks_range.sh vscode $VSCODE_START $VSCODE_END
-            " || {
-            echo "ERROR: VSCode benchmark failed for model $model"
-            return 1
-        }
+        start_gpu_monitor vscode
+        run_suite "$model" vscode "$infra_tag" $VSCODE_START $VSCODE_END || { stop_gpu_monitor; return 1; }
+        stop_gpu_monitor
         echo "[$(date +%H:%M:%S)] VSCode completed, waiting 5s before Obsidian..."
         sleep 5
-        docker exec "$MCPWORLD_CONTAINER" bash -c "
-                export PATH='/home/agent/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' &&
-                export DISPLAY=:4 &&
-                export MODEL='$model' &&
-                export INFRASTRUCTURE_TAG='$infra_tag' &&
-                cd /workspace &&
-                ./scripts/run_tasks_range.sh obsidian $OBSIDIAN_START $OBSIDIAN_END
-            " || {
-            echo "ERROR: Obsidian benchmark failed for model $model"
-            return 1
-        }
+        start_gpu_monitor obsidian
+        run_suite "$model" obsidian "$infra_tag" $OBSIDIAN_START $OBSIDIAN_END || { stop_gpu_monitor; return 1; }
+        stop_gpu_monitor
         ;;
     esac
 
@@ -211,25 +216,12 @@ for model in "${MODELS[@]}"; do
     # Step 2: Load model
     load_model "$model" || continue
 
-    # Step 3: Start GPU monitoring on host
+    # Step 3: Set up model name vars used by GPU monitor helpers
     CLEAN_MODEL=$(echo "$model" | tr ':/' '-_')
     INFRA_SUFFIX="${INFRASTRUCTURE_TAG:+_${INFRASTRUCTURE_TAG}}"
-    # Find the run folder that will be created by run_tasks_range.sh
-    # GPU CSV goes to a known location; result_collector will find it
-    GPU_LOG_DIR="logs_computer_use_eval/${BENCHMARK_TYPE}_runs/gpu_logs"
-    mkdir -p "$GPU_LOG_DIR"
-    GPU_LOG="${GPU_LOG_DIR}/gpu_metrics_${CLEAN_MODEL}${INFRA_SUFFIX}.csv"
-    python3 scripts/monitor_gpu.py "$GPU_LOG" 0.25 &
-    GPU_MONITOR_PID=$!
-    echo "[$(date +%H:%M:%S)] Started GPU monitoring (PID: $GPU_MONITOR_PID) -> $GPU_LOG"
 
-    # Step 4: Run benchmark
+    # Step 4: Run benchmark (GPU monitoring is handled per-suite inside run_benchmark)
     run_benchmark "$model" "$BENCHMARK_TYPE" "$INFRASTRUCTURE_TAG" || continue
-
-    # Step 5: Stop GPU monitoring
-    kill $GPU_MONITOR_PID 2>/dev/null || true
-    wait $GPU_MONITOR_PID 2>/dev/null || true
-    echo "[$(date +%H:%M:%S)] Stopped GPU monitoring -> $GPU_LOG"
 
     # Step 6: Clean up container state
     echo "[$(date +%H:%M:%S)] Cleaning up container state..."

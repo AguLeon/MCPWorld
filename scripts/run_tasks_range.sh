@@ -103,7 +103,7 @@ CLEAN_MODEL_NAME=$(echo "$MODEL" | tr ':/' '-_')
 
 # Create intermediate run folder with model name and infrastructure tag
 INFRASTRUCTURE_SUFFIX="${INFRASTRUCTURE_TAG:+_${INFRASTRUCTURE_TAG}}"
-RUN_FOLDER="${LOG_ROOT}/${CLEAN_MODEL_NAME}${INFRASTRUCTURE_SUFFIX}_run_${RUN_TIMESTAMP}"
+RUN_FOLDER="${LOG_ROOT}/${RUN_TIMESTAMP}_${CLEAN_MODEL_NAME}${INFRASTRUCTURE_SUFFIX}"
 mkdir -p "$RUN_FOLDER"
 
 printf "task_id,status,reason,log_dir\n" >"$SUMMARY_FILE"
