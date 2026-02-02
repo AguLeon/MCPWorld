@@ -192,8 +192,13 @@ for idx in $(seq "$START" "$END"); do
     FALLBACK_STATUS="success"
     FALLBACK_REASON=""
     if ((TASK_EXIT == 124)); then
+        echo "[TIMEOUT] $TASK_ID hit ${TOTAL_TIMEOUT}s timeout (SIGTERM sent, 10s grace for saving results)"
         FALLBACK_STATUS="error"
         FALLBACK_REASON="timeout_${TOTAL_TIMEOUT}s"
+    elif ((TASK_EXIT == 137)); then
+        echo "[TIMEOUT] $TASK_ID was SIGKILLed after 10s grace period (failed to exit gracefully)"
+        FALLBACK_STATUS="error"
+        FALLBACK_REASON="timeout_killed_${TOTAL_TIMEOUT}s"
     elif ((TASK_EXIT != 0)); then
         FALLBACK_STATUS="error"
         FALLBACK_REASON="runner_exit_code_${TASK_EXIT}"

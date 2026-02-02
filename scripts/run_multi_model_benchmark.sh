@@ -237,6 +237,10 @@ for model in "${MODELS[@]}"; do
     docker exec "$MCPWORLD_CONTAINER" bash -c "pkill -f 'code-server|obsidian|python.*run_pure_computer_use' || true" 2>/dev/null || true
     sleep 2
 
+    # Wipe VSCode user_data_dir to prevent SIGSEGV on next model's first task
+    echo "[$(date +%H:%M:%S)] Wiping VSCode user_data_dir..."
+    docker exec "$MCPWORLD_CONTAINER" bash -c "rm -rf /workspace/.mcpworld/vscode/vscode_user_data_dir" 2>/dev/null || true
+
     echo "[$(date +%H:%M:%S)] ✓ Completed: $model ($CURRENT/$TOTAL_MODELS)"
     echo ""
 done
