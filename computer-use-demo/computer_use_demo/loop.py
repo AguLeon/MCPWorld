@@ -562,13 +562,13 @@ async def sampling_loop(
                 if evaluator and evaluator_task_id and AgentEvent:
                     try:
                         evaluator.record_event(
-                            AgentEvent.TOOL_CALL_END,
+                            AgentEvent.AGENT_ERROR_OCCURRED,
                             {
                                 "timestamp": time.time(),
-                                "tool_name": "loop_detection",
-                                "success": True,
-                                "error": None,
-                                "result": loop_description,
+                                "tool_name": tool_call_segments[-1].tool_name,
+                                # "success": True,
+                                "error": "loop_detection",
+                                "stack_trace": loop_description,
                             }
                         )
                     except Exception as rec_e:
