@@ -224,8 +224,7 @@ for model in "${MODELS[@]}"; do
     run_benchmark "$model" "$BENCHMARK_TYPE" "$INFRASTRUCTURE_TAG" || continue
 
     # Step 6: Clean up container state
-    echo "[$(date +%H:%M:%S)] Cleaning up container state..."
-    docker exec "$MCPWORLD_CONTAINER" bash -c "pkill -f 'code-server|obsidian|python.*run_pure_computer_use' || true" 2>/dev/null || true
+    docker exec "$MCPWORLD_CONTAINER" bash -c "pkill -f 'code-oss|obsidian|python.*run_pure_computer_use' || true" 2>/dev/null || true
     sleep 2
 
     # Wipe VSCode user_data_dir to prevent SIGSEGV on next model's first task
