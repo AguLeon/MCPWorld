@@ -65,20 +65,19 @@ vscode | obsidian | both) ;;
 esac
 
 # Task ranges for each app
-VSCODE_START=3
-VSCODE_END=3
-OBSIDIAN_START=2
-OBSIDIAN_END=5
+VSCODE_START=1
+VSCODE_END=25
+OBSIDIAN_START=1
+OBSIDIAN_END=12
 
 # Define models to benchmark (edit this list as needed)
 MODELS=(
-    # "qwen3-vl:2b-instruct"
-    # "qwen3-vl:8b-instruct"
-    "qwen3-vl:32b-instruct"
-    # "qwen3-vl:32b"
     # "qwen3-vl:235b-a22b-instruct"
     # "qwen3-vl:235b"
-    # "ministral-3:14b"
+    # "qwen3-vl:32b"
+    # "qwen3-vl:32b-instruct"
+    "qwen3-vl:8b-instruct"
+    # "qwen3-vl:2b-instruct"
     # "ministral-3:8b-instruct-2512-fp16"
     # "ministral-3:14b-instruct-2512-fp16"
     # "devstral-small-2:24b"
