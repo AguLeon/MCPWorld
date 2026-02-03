@@ -133,6 +133,15 @@ class AnthropicAdapter(BaseProviderAdapter):
             if segment:
                 message.append(segment)
         message.metadata["beta_content_blocks"] = content_blocks
+
+        # Extract usage data from the response
+        if hasattr(response.beta_messages, 'usage'):
+            usage = response.beta_messages.usage
+            message.metadata["usage"] = {
+                "input_tokens": getattr(usage, 'input_tokens', 0),
+                "output_tokens": getattr(usage, 'output_tokens', 0),
+            }
+
         return message
 
     def _create_client(self, options: ProviderOptions) -> Any:

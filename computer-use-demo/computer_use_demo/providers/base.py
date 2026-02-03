@@ -54,17 +54,21 @@ class ToolCallSegment(MessageSegment):
     arguments: Dict[str, Any]
     call_id: str
 
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
     def __init__(
         self,
         *,
         tool_name: str,
         arguments: Dict[str, Any],
         call_id: str,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         MessageSegment.__init__(self, type="tool_call")
         self.tool_name = tool_name
         self.arguments = arguments
         self.call_id = call_id
+        self.metadata = metadata or {}
 
 
 @dataclass(slots=True)

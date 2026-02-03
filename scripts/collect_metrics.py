@@ -23,18 +23,43 @@ METRICS_HEADER = [
     "total_error_count",
     "total_steps",
     "completed_steps",
+    "avg_gpu_util_pct",
+    "max_gpu_util_pct",
+    "avg_vram_mb",
+    "peak_vram_mb",
+    "avg_temp_c",
+    "max_temp_c",
+    "avg_power_w",
+    "max_power_w",
+    "total_energy_joules",
+    "total_energy_kwh",
+    "avg_tokens_per_second",
+    "overall_tokens_per_second",
+    "total_completion_tokens",
+    "total_generation_time_sec",
+    "avg_tool_confidence",
+    "min_tool_confidence",
+    "avg_container_cpu_pct",
+    "max_container_cpu_pct",
+    "avg_container_mem_mb",
+    "peak_container_mem_mb",
     "log_dir",
 ]
 
 
-def _load_metrics(result_file: Path) -> Dict[str, Any]:
+def _load_result(result_file: Path) -> Dict[str, Any]:
+    """Load the full result JSON, returning empty dict on failure."""
     if not result_file or not result_file.exists():
         return {}
     try:
         with result_file.open("r", encoding="utf-8") as fh:
-            return json.load(fh).get("computed_metrics", {}) or {}
+            return json.load(fh)
     except Exception:
         return {}
+
+
+def _load_metrics(result_file: Path) -> Dict[str, Any]:
+    return _load_result(result_file).get("computed_metrics", {}) or {}
 
 
 def _sanitize(value: Any) -> str:
@@ -66,7 +91,12 @@ def main() -> None:
     parser.add_argument("--fallback-reason", default="", help="Reason when result is missing")
     args = parser.parse_args()
 
-    computed = _load_metrics(args.result) if args.result else {}
+    result_data = _load_result(args.result) if args.result else {}
+    computed = result_data.get("computed_metrics", {}) or {}
+    gpu = result_data.get("gpu_hardware_metrics", {}) or {}
+    throughput = computed.get("throughput_metrics", {}) or {}
+    tool_confidence = computed.get("tool_confidence_metrics", {}) or {}
+
     status = computed.get("task_completion_status", {}).get("status") or args.fallback_status
     reason = computed.get("task_completion_status", {}).get("reason") or args.fallback_reason
 
@@ -98,6 +128,26 @@ def main() -> None:
         _sanitize(total_error_count),
         _sanitize(total_steps),
         _sanitize(completed_steps),
+        _sanitize(gpu.get("avg_gpu_util_pct")),
+        _sanitize(gpu.get("max_gpu_util_pct")),
+        _sanitize(gpu.get("avg_vram_mb")),
+        _sanitize(gpu.get("peak_vram_mb")),
+        _sanitize(gpu.get("avg_temp_c")),
+        _sanitize(gpu.get("max_temp_c")),
+        _sanitize(gpu.get("avg_power_w")),
+        _sanitize(gpu.get("max_power_w")),
+        _sanitize(gpu.get("total_energy_joules")),
+        _sanitize(gpu.get("total_energy_kwh")),
+        _sanitize(throughput.get("avg_tokens_per_second")),
+        _sanitize(throughput.get("overall_tokens_per_second")),
+        _sanitize(throughput.get("total_completion_tokens")),
+        _sanitize(throughput.get("total_generation_time_sec")),
+        _sanitize(tool_confidence.get("avg_tool_confidence")),
+        _sanitize(tool_confidence.get("min_tool_confidence")),
+        _sanitize(gpu.get("avg_container_cpu_pct")),
+        _sanitize(gpu.get("max_container_cpu_pct")),
+        _sanitize(gpu.get("avg_container_mem_mb")),
+        _sanitize(gpu.get("peak_container_mem_mb")),
         _sanitize(args.log_dir),
     ]
 

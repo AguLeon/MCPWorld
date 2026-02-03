@@ -158,7 +158,7 @@ RUN git clone --branch v1.5.0 https://github.com/novnc/noVNC.git /opt/noVNC && \
 # RUN dpkg -i virtualgl_3.1.2_amd64.deb
 # RUN rm virtualgl_3.1.2_amd64.deb
 
-RUN wget https://github.com/TurboVNC/turbovnc/releases/download/3.1.4/turbovnc_3.1.4_amd64.deb
+RUN wget -4 https://github.com/TurboVNC/turbovnc/releases/download/3.1.4/turbovnc_3.1.4_amd64.deb
 RUN dpkg -i turbovnc_3.1.4_amd64.deb
 # RUN rm turbovnc_3.1.4_amd64.deb
 
@@ -170,6 +170,9 @@ RUN groupadd vglusers
 RUN useradd -m agent
 RUN usermod -aG sudo,video,vglusers agent
 RUN echo 'agent:123' | chpasswd
+
+USER agent
+ENV HOME=/home/agent
 
 # Set up VirtualGL (for OpenGL rendering in virtual environments)
 # RUN mkdir -p /etc/opt/VirtualGL && \

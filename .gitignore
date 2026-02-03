@@ -224,3 +224,4 @@ logs_computer_use_eval/
 sample_message_stream.json
 logs/*
 .mcpworld/*
+temp/*

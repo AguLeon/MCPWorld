@@ -9,6 +9,11 @@ services:
     container_name: mcpworld
     volumes:
       - ../../MCPWorld/:/workspace
+    shm_size: "1g"
+    security_opt:
+      - seccomp:unconfined
+    cap_add:
+      - SYS_PTRACE
     ports:
       - "5900:5900"
       - "5904:5904"
@@ -20,7 +25,7 @@ services:
       # - OPENAI_BASE_URL=http://localhost:11434
       - OPENAI_BASE_URL=http://host.docker.internal:11434
       - OPENAI_ENDPOINT=/v1/chat/completions
-      - OPENAI_TIMEOUT=300
+      - OPENAI_TIMEOUT=1000
       - INSTALL_APPS=${INSTALL_APPS-}
       - WIDTH=1000
       - HEIGHT=1000
@@ -52,29 +57,6 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-
-  # ollama-webui:
-  #   image: ghcr.io/open-webui/open-webui:main
-  #   container_name: ollama-webui
-  #   volumes:
-  #     - ./ollama/ollama-webui:/app/backend/data
-  #   depends_on:
-  #     - ollama
-  #   ports:
-  #     - 8080:8080
-  #   environment:
-  #     - OLLAMA_BASE_URLS=http://host.docker.internal:11434 #comma separated ollama hosts
-  #     - ENV=dev
-  #     - WEBUI_AUTH=False
-  #     - WEBUI_NAME=valiantlynx AI
-  #     - WEBUI_URL=http://localhost:8080
-  #     - WEBUI_SECRET_KEY=t0p-s3cr3t
-  #   extra_hosts:
-  #     - host.docker.internal:host-gateway
-  #   restart: unless-stopped
-  #   networks:
-  #     - testbed-docker
-
 
 
 networks:
