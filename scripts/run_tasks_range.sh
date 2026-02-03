@@ -62,12 +62,13 @@ if [[ -n "$SAVED_INFRA_TAG" ]]; then
 fi
 
 # Export variables for Python code to access via os.environ
-export MODEL                # May be overridden by parent script
-export PROVIDER             # Always from config.cfg
-export OPENAI_BASE_URL      # Always from config.cfg
-export OPENAI_ENDPOINT      # Always from config.cfg
-export INFRASTRUCTURE_TAG   # May be overridden by parent script
-export MAX_LLM_CALLS        # Always from config.cfg
+export MODEL              # May be overridden by parent script
+export PROVIDER           # Always from config.cfg
+export OPENAI_BASE_URL    # Always from config.cfg
+export OPENAI_ENDPOINT    # Always from config.cfg
+export INFRASTRUCTURE_TAG # May be overridden by parent script
+export MAX_LLM_CALLS      # Always from config.cfg
+export LLM_TEMPERATURE    # Always from config.cfg
 
 TASK_TIMEOUT=${TASK_TIMEOUT:-600}
 TOTAL_TIMEOUT=${TOTAL_TIMEOUT:-$TASK_TIMEOUT}
