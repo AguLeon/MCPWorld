@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterable, List, Optional
 from uuid import uuid4
@@ -28,7 +29,9 @@ class OpenAIProviderRequest:
     headers: Dict[str, str]
     payload: Dict[str, Any]
     api_response_callback: Optional[
-        Callable[[httpx.Request, httpx.Response | object | None, Exception | None], None]
+        Callable[
+            [httpx.Request, httpx.Response | object | None, Exception | None], None
+        ]
     ] = None
     timeout: Optional[float] = None
 
@@ -51,12 +54,8 @@ class OpenAIAdapter(BaseProviderAdapter):
         tools: List[ToolSpec],
         options: ProviderOptions,
     ) -> ProviderRequest:
-        base_url: str = options.extra_options.get(
-            "base_url", "https://api.openai.com"
-        )
-        endpoint: str = options.extra_options.get(
-            "endpoint", "/v1/chat/completions"
-        )
+        base_url: str = options.extra_options.get("base_url", "https://api.openai.com")
+        endpoint: str = options.extra_options.get("endpoint", "/v1/chat/completions")
         url = f"{base_url.rstrip('/')}{endpoint}"
 
         system_prompts = options.extra_options.get(
@@ -69,17 +68,11 @@ class OpenAIAdapter(BaseProviderAdapter):
         if system_prompts:
             for prompt in system_prompts:
                 if prompt:
-                    messages_payload.append(
-                        {"role": "system", "content": prompt}
-                    )
+                    messages_payload.append({"role": "system", "content": prompt})
 
-        messages_payload.extend(
-            _transcript_to_openai_messages(transcript.messages)
-        )
+        messages_payload.extend(_transcript_to_openai_messages(transcript.messages))
 
-        tools_payload = [
-            _tool_spec_to_openai(tool_spec) for tool_spec in tools
-        ]
+        tools_payload = [_tool_spec_to_openai(tool_spec) for tool_spec in tools]
         payload: Dict[str, Any] = {
             "model": options.model,
             "messages": messages_payload,
@@ -88,9 +81,12 @@ class OpenAIAdapter(BaseProviderAdapter):
         }
         if tools_payload:
             payload["tools"] = tools_payload
-            payload["tool_choice"] = options.extra_options.get(
-                "tool_choice", "auto"
-            )
+            payload["tool_choice"] = options.extra_options.get("tool_choice", "auto")
+
+        # Enable logprobs for tool call confidence scoring
+        if options.extra_options.get("enable_logprobs", True):
+            payload["logprobs"] = True
+            payload["top_logprobs"] = options.extra_options.get("top_logprobs", 5)
 
         response_format = options.extra_options.get("response_format")
         if response_format:
@@ -103,9 +99,7 @@ class OpenAIAdapter(BaseProviderAdapter):
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
 
-        extra_headers: Dict[str, str] = options.extra_options.get(
-            "headers", {}
-        )
+        extra_headers: Dict[str, str] = options.extra_options.get("headers", {})
         headers.update(extra_headers or {})
 
         timeout = options.extra_options.get("timeout")
@@ -114,16 +108,14 @@ class OpenAIAdapter(BaseProviderAdapter):
             url=url,
             headers=headers,
             payload=payload,
-            api_response_callback=options.extra_options.get(
-                "api_response_callback"
-            ),
+            api_response_callback=options.extra_options.get("api_response_callback"),
             timeout=timeout,
         )
 
     async def invoke(self, request: ProviderRequest) -> ProviderResponse:
         assert isinstance(request, OpenAIProviderRequest)
         try:
-            async with httpx.AsyncClient(timeout=request.timeout) as client:
+            async with httpx.AsyncClient(timeout=request.timeout or 1000.0) as client:
                 response = await client.post(
                     request.url,
                     headers=request.headers,
@@ -176,6 +168,10 @@ class OpenAIAdapter(BaseProviderAdapter):
                     if tool_segment:
                         segments.append(tool_segment)
 
+        # Extract logprobs for confidence scoring
+        logprobs_data = choices[0].get("logprobs")
+        confidence = _extract_tool_confidence(logprobs_data)
+
         tool_calls = message_payload.get("tool_calls", [])
         for call in tool_calls or []:
             function = call.get("function", {})
@@ -184,11 +180,15 @@ class OpenAIAdapter(BaseProviderAdapter):
                 arguments = json.loads(raw_args)
             except json.JSONDecodeError:
                 arguments = {"raw": raw_args}
+            tc_metadata: Dict[str, Any] = {}
+            if confidence is not None:
+                tc_metadata["confidence"] = confidence
             segments.append(
                 ToolCallSegment(
                     tool_name=function.get("name", ""),
                     arguments=arguments or {},
                     call_id=call.get("id") or str(uuid4()),
+                    metadata=tc_metadata,
                 )
             )
 
@@ -211,15 +211,46 @@ class OpenAIAdapter(BaseProviderAdapter):
         for segment in segments:
             assistant_message.append(segment)
 
-        assistant_message.metadata["finish_reason"] = choices[0].get(
-            "finish_reason"
-        )
+        assistant_message.metadata["finish_reason"] = choices[0].get("finish_reason")
         assistant_message.metadata["raw_response"] = response.payload
+
+        # Extract usage data from the response (OpenAI format)
+        usage = response.payload.get("usage", {})
+        if usage:
+            assistant_message.metadata["usage"] = {
+                "input_tokens": usage.get("prompt_tokens", 0),
+                "output_tokens": usage.get("completion_tokens", 0),
+            }
+
         return assistant_message
 
     @property
     def supports_thinking(self) -> bool:
         return False
+
+
+def _extract_tool_confidence(logprobs_data: Optional[Dict[str, Any]]) -> Optional[float]:
+    """Extract average token confidence from logprobs data.
+
+    Logprobs are in log space: logprob = log(probability).
+    Convert to probability: prob = e^(logprob).
+    Returns average probability across all tokens as a 0-1 confidence score.
+    Returns None if logprobs are unavailable or empty.
+    """
+    if not logprobs_data:
+        return None
+    content = logprobs_data.get("content")
+    if not content:
+        return None
+    token_probs: List[float] = []
+    for token_data in content:
+        logprob = token_data.get("logprob")
+        if logprob is not None:
+            prob = math.exp(logprob)
+            token_probs.append(min(prob, 1.0))
+    if not token_probs:
+        return None
+    return round(sum(token_probs) / len(token_probs), 4)
 
 
 def _maybe_tool_calls_from_content(content: str) -> List[ToolCallSegment]:
@@ -249,7 +280,9 @@ def _tool_block_to_segment(block: Dict[str, Any]) -> Optional[ToolCallSegment]:
     if block_type not in {"tool_call", "function"}:
         return None
 
-    tool_payload = block.get("function") if isinstance(block.get("function"), dict) else block
+    tool_payload = (
+        block.get("function") if isinstance(block.get("function"), dict) else block
+    )
     tool_name = (
         block.get("name")
         or block.get("tool_name")
@@ -257,7 +290,9 @@ def _tool_block_to_segment(block: Dict[str, Any]) -> Optional[ToolCallSegment]:
         or ""
     )
     if not tool_name:
-        inferred = _infer_tool_name(tool_payload if isinstance(tool_payload, dict) else block)
+        inferred = _infer_tool_name(
+            tool_payload if isinstance(tool_payload, dict) else block
+        )
         tool_name = inferred or ""
     if not tool_name:
         return None
@@ -417,7 +452,11 @@ def _infer_tool_name(block: Dict[str, Any]) -> Optional[str]:
         return None
 
     param_keys = {key.lower() for key in params.keys()}
-    if {"action"} & param_keys or {"coordinate", "scroll_amount", "scroll_direction"} & param_keys:
+    if {"action"} & param_keys or {
+        "coordinate",
+        "scroll_amount",
+        "scroll_direction",
+    } & param_keys:
         return "computer"
     if "path" in param_keys and "command" in param_keys:
         return "str_replace_editor"

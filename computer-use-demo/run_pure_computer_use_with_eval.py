@@ -143,6 +143,7 @@ def handle_evaluator_event(event_data: CallbackEventData, evaluator: BaseEvaluat
     global evaluation_finished
     if event_data.event_type in ["task_completed", "task_error"]:
         print(f"Evaluator reported final status: {event_data.event_type}")
+        print(f"[TERMINATION] Setting evaluation_finished=True due to evaluator event: {event_data.event_type}")
         evaluation_finished = True
 
 # --- Signal handling function ---
@@ -189,11 +190,17 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
     is_timeout = lambda: args.timeout > 0 and time.time() - start_time > args.timeout
     timed_out = False
     max_llm_calls = args.max_llm_calls
-    llm_call_count = 0
     llm_limit_reached = False
-    while (args.max_turns is None or turn_count < args.max_turns) and not evaluation_finished:
-        if max_llm_calls is not None and llm_call_count >= max_llm_calls:
-            print(f"\nReached MAX_LLM_CALLS ({max_llm_calls}); stopping task.")
+    while True:
+        # Log loop iteration status
+        elapsed_time = time.time() - start_time
+        print(f"\n[LOOP STATUS] Turn {turn_count}, Elapsed: {elapsed_time:.1f}s")
+
+        # Note: max_llm_calls limits conversation turns, not individual LLM API calls
+        # (actual API calls are now counted inside sampling_loop)
+        if max_llm_calls is not None and turn_count >= max_llm_calls:
+            print(f"\n[TERMINATION] Reached MAX_LLM_CALLS ({max_llm_calls}); stopping task.")
+            print(f"[TERMINATION] Turn count: {turn_count}, Elapsed: {time.time() - start_time:.1f}s")
             if evaluator:
                 evaluator.set_stop_context(
                     reason=f"LLM call limit reached ({max_llm_calls})",
@@ -203,7 +210,8 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
             break
         # Check for timeout (relative to the loop start)
         if is_timeout():
-            print(f"\nExecution timed out ({args.timeout} seconds)")
+            print(f"\n[TERMINATION] Execution timed out ({args.timeout} seconds)")
+            print(f"[TERMINATION] Turn count: {turn_count}, Elapsed: {time.time() - start_time:.1f}s")
             timed_out = True
             break  # Let finally handle stopping
 
@@ -214,22 +222,37 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
             if turn_count == 0:
                 default_instr = evaluator.default_instruction
                 if default_instr:
-                    prompt = f'You (Press Enter for default: "{default_instr}"): '
-                    user_input = input(prompt)
-                    if not user_input.strip():  # If user just pressed Enter or input was blank
+                    if args.auto_accept_default:
+                        # Automatically use default instruction without prompting
                         print(f"Using default instruction: {default_instr}")
                         user_input = default_instr
+                    else:
+                        prompt = f'You (Press Enter for default: "{default_instr}"): '
+                        user_input = input(prompt)
+                        if not user_input.strip():  # If user just pressed Enter or input was blank
+                            print(f"Using default instruction: {default_instr}")
+                            user_input = default_instr
                 else:
                     # If no default instruction, normal prompt
                     user_input = input("You: ")
             else:
-                user_input = input("You: ")
+                # On subsequent turns
+                if args.auto_accept_default:
+                    # Automated mode: only one instruction on turn 0, then exit
+                    print("[INFO] Automated mode: Task completed or stopping after turn 0")
+                    break
+                else:
+                    # Interactive mode: prompt for next instruction
+                    user_input = input("You: ")
 
             if user_input.lower() in ["quit", "exit"]:
-                print("User requested exit.")
+                print("[TERMINATION] User requested exit.")
+                print(f"[TERMINATION] Turn count: {turn_count}, Elapsed: {time.time() - start_time:.1f}s")
                 break  # Exit loop normally
         except EOFError:
-            print("\nEOF detected, exiting.")
+            print("\n[TERMINATION] EOF detected, exiting.")
+            print(f"[TERMINATION] Turn count: {turn_count}, Elapsed: {time.time() - start_time:.1f}s")
+            print("[TERMINATION] This usually means stdin was closed - check if the agent process was killed externally")
             break
 
         # Add user input to message history
@@ -261,21 +284,10 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
             except Exception as e:
                 print(f"[Warning: Failed to capture initial screenshot: {e}]")
 
-        # --- Event recording: LLM call starts ---
-        llm_start_time = time.time()
-        model_name_to_record = args.model  # Or try to get it from the client
-        evaluator.record_event(AgentEvent.LLM_QUERY_START, {
-            'timestamp': llm_start_time,
-            'model_name': model_name_to_record
-        })
-
         print("Assistant thinking...")
-        llm_success = False
-        llm_error = None
-        usage_info = None  # Initialize usage_info
         try:
             # --- Call core sampling_loop ---
-            # Need to pass evaluator and task_id for internal TOOL event recording
+            # LLM event recording now happens inside sampling_loop for each actual API call
             messages = await sampling_loop(
                 model=args.model,
                 provider=provider,
@@ -293,30 +305,46 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
                 only_n_most_recent_images=None,
                 thinking_budget=None,
                 token_efficient_tools_beta=False,
+                temperature=float(os.environ.get("LLM_TEMPERATURE", 0.7)),
                 exec_mode=args.exec_mode,
-                # TODO: Try making sampling_loop return usage_info
+                max_llm_calls=max_llm_calls,  # Pass MAX_LLM_CALLS limit
             )
-            # Assume if no exception is thrown in sampling_loop, the LLM call was successful
-            # But we don't directly get usage_info
-            llm_success = True
-            # print(f"Debug: messages after loop: {messages}")  # For debugging
         except Exception as e:
             print(f"\n[Error during agent loop]: {e}")
-            llm_error = str(e)
-            # break  # Exit loop on error
 
-        # --- Event recording: LLM call ends ---
-        # Temporarily unable to get exact tokens, record None
-        evaluator.record_event(AgentEvent.LLM_QUERY_END, {
-            'timestamp': time.time(),
-            'status': 'success' if llm_success else 'error',
-            'error': llm_error,
-            'prompt_tokens': None,  # <-- Missing
-            'completion_tokens': None,  # <-- Missing
-            'cost': None
-        })
+        # --- Check if the agent's last response invoked any tools ---
+        if messages and len(messages) > 0:
+            last_message = messages[-1]
+            if last_message.get('role') == 'assistant':
+                content_blocks = last_message.get('content', [])
+                has_tool_calls = any(block.get('type') == 'tool_use' for block in content_blocks)
 
-        llm_call_count += 1
+                # Count different content types
+                text_blocks = [b for b in content_blocks if b.get('type') == 'text']
+                tool_blocks = [b for b in content_blocks if b.get('type') == 'tool_use']
+                thinking_blocks = [b for b in content_blocks if b.get('type') == 'thinking']
+
+                if not has_tool_calls:
+                    print(f"\n{'='*60}")
+                    print(f"[AGENT DECISION] Agent's last LLM response invoked no tools")
+                    print(f"[AGENT DECISION] Response content breakdown:")
+                    print(f"  - Text blocks: {len(text_blocks)}")
+                    print(f"  - Tool blocks: {len(tool_blocks)}")
+                    print(f"  - Thinking blocks: {len(thinking_blocks)}")
+
+                    # Show text content if any
+                    if text_blocks:
+                        for i, block in enumerate(text_blocks):
+                            text_preview = block.get('text', '')[:200]  # First 200 chars
+                            if len(block.get('text', '')) > 200:
+                                text_preview += "..."
+                            print(f"  - Text content [{i+1}]: {text_preview}")
+
+                    print(f"[AGENT DECISION] The agent believes the task is complete")
+                    print(f"[AGENT DECISION] Turn {turn_count} ending naturally - no more tool calls requested")
+                    print(f"{'='*60}\n")
+                else:
+                    print(f"\n[INFO] Agent's last response included {len(tool_blocks)} tool call(s)")
 
         # --- Check if the Agent reports completion (simple example, needs to be adjusted based on actual output) ---
         # if messages:
@@ -329,6 +357,32 @@ async def run_agent_loop(args, evaluator: BaseEvaluator):  # <-- Accepting evalu
 
         turn_count += 1
         time.sleep(1)  # Short sleep to avoid high CPU usage and give callbacks time
+
+    # Log why the main loop exited
+    elapsed_time = time.time() - start_time
+    print(f"\n{'='*60}")
+    print(f"[LOOP EXIT] Main loop terminated")
+    print(f"[LOOP EXIT] Final turn count: {turn_count}")
+    print(f"[LOOP EXIT] Total elapsed time: {elapsed_time:.1f}s")
+    print(f"[LOOP EXIT] timed_out: {timed_out}")
+    print(f"[LOOP EXIT] llm_limit_reached: {llm_limit_reached}")
+
+    # Evaluator status (informational only - doesn't control agent loop)
+    if evaluation_finished:
+        print(f"[LOOP EXIT] Evaluator status: Task validation completed")
+    else:
+        print(f"[LOOP EXIT] Evaluator status: Still running or not completed")
+
+    # Determine primary exit reason (agent-driven, not evaluator-driven)
+    if timed_out:
+        print(f"[LOOP EXIT] PRIMARY REASON: Task timeout ({args.timeout}s)")
+    elif llm_limit_reached:
+        print(f"[LOOP EXIT] PRIMARY REASON: LLM call limit reached ({max_llm_calls})")
+    elif args.auto_accept_default and turn_count > 0:
+        print(f"[LOOP EXIT] PRIMARY REASON: Automated mode completed turn 0")
+    else:
+        print(f"[LOOP EXIT] PRIMARY REASON: User quit or EOF")
+    print(f"{'='*60}\n")
 
     ensure_evaluation_completion(evaluator, trigger_hook=True)
     if timed_out and evaluator:
@@ -369,8 +423,9 @@ if __name__ == "__main__":
     parser.add_argument("--log_dir", type=str, default="logs_computer_use_eval", help="Directory for evaluator logs and results")
     parser.add_argument("--app_path", type=str, default=None, help="Path to specific application if required by the task")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TASK_TIMEOUT, help="Overall execution timeout in seconds (default: 600)")
-    parser.add_argument("--exec_mode", type=str, choices=["mixed", "gui", "api"], default="mixed", 
+    parser.add_argument("--exec_mode", type=str, choices=["mixed", "gui", "api"], default="mixed",
                         help="Agent mode for tool use evaluation (default: mixed)")
+    parser.add_argument("--auto-accept-default", action="store_true", help="Automatically accept default instruction without prompting for input")
 
     args = parser.parse_args()
 
@@ -403,7 +458,7 @@ if __name__ == "__main__":
         tool_choice = args.openai_tool_choice or os.getenv("OPENAI_TOOL_CHOICE", "auto")
         if tool_choice not in {"auto", "none"}:
             tool_choice = "auto"
-        timeout = args.openai_timeout
+        timeout = args.openai_timeout or 1000.00
         if timeout is None:
             timeout_env = os.getenv("OPENAI_TIMEOUT")
             if timeout_env:
@@ -434,7 +489,7 @@ if __name__ == "__main__":
             print("Error: Anthropic API key must be provided (--api_key or ANTHROPIC_API_KEY environment variable)")
             sys.exit(1)
         args.resolved_api_key = api_key
-    
+
     if not os.getenv("DISPLAY"):
         print("Error: DISPLAY environment variable must be provided")
         sys.exit(1)
