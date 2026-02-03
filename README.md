@@ -1,7 +1,29 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [MCPWorld: A Multi-Modal Test Platform for Computer-Using Agents (CUA)](#mcpworld-a-multi-modal-test-platform-for-computer-using-agents-cua)
+  - [Pending stuff from AN-AL review:](#pending-stuff-from-an-al-review)
+  - [Key Features](#key-features)
+  - [Overview](#overview)
+  - [Installation](#installation)
+    - [Prerequisites](#prerequisites)
+    - [Quick Setup](#quick-setup)
+  - [Quickstart](#quickstart)
+  - [1. Start the Docker Workspace](#1-start-the-docker-workspace)
+    - [What starts automatically:](#what-starts-automatically)
+  - [2. Install the apps to be tested(Inside `mcpworld` container)](#2-install-the-apps-to-be-testedinside-mcpworld-container)
+  - [3. Test multiple Ollama automatically (In Host machine)](#3-test-multiple-ollama-automatically-in-host-machine)
+  - [4. Monitor Headless Runs](#4-monitor-headless-runs)
+  - [Running Tests](#running-tests)
+  - [Documentation](#documentation)
+  - [License](#license)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # MCPWorld: A Multi-Modal Test Platform for Computer-Using Agents (CUA)
 
 ## Pending stuff from AN-AL review:
- - Add table contents
  - Add a link to a sample json files (that looks nice)
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Docker](https://img.shields.io/badge/Docker-Supported-green.svg)
@@ -78,7 +100,7 @@ docker compose up -d
 
 - SUDO password for `mcpworld` environment : `123`
 
-### **What starts automatically:**
+### What starts automatically:
 `docker compose up` launches 2 containers; `mcpworld` and `ollama`:
 - In `mcpworld` container, following are run automatically:
     - TurboVNC (display `:4`),
@@ -87,7 +109,7 @@ docker compose up -d
     - All the packages specified in `computer-use-demo/computer_use_demo/requirements.txt`
 - The `ollama` container runs a Ollama server
 
-#### NOTE:
+NOTE:
 To go inside the docker container environment, you can write the following command:
 ```bash
 docker exec -it <container-name> /bin/bash
