@@ -84,7 +84,7 @@ if [[ "${ENABLE_MCP_PROXY:-1}" != "0" ]]; then
 fi
 
 # Wait for background installers to finish before finishing startup so logs are complete.
-wait -n
+wait
 
 # Open the bash
 exec bash
