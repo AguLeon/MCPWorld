@@ -11,17 +11,34 @@ chmod 600 ~/.vnc/passwd
 echo $WIDTH
 echo $HEIGHT
 
+echo "Starting container services..."
+
 # Run the VNC Server
 /opt/TurboVNC/bin/vncserver -xstartup ~/.vnc/xstartup -geometry ${WIDTH}x${HEIGHT} :4
+echo "TurboVNC started!"
 
 # Run the noVNC server (for web inteface)
 /opt/noVNC/utils/novnc_proxy \
     --vnc localhost:5904 \
     --listen 0.0.0.0:6080 \
     --web /opt/noVNC >/tmp/novnc.log 2>&1 &
+echo "noVNC server started!"
 
 # Install Python Packages
 /home/agent/miniconda3/bin/pip install -r /workspace/computer-use-demo/computer_use_demo/requirements.txt
+echo "Python Packages installed!"
+
+# Run streamlit headless
+export STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+export STREAMLIT_SERVER_HEADLESS=true
+export STREAMLIT_SERVER_ADDRESS=0.0.0.0
+export STREAMLIT_SERVER_PORT=8501
+
+# Start Streamlit in background
+cd /workspace/computer-use-demo
+python -m streamlit run computer_use_demo/streamlit.py >/tmp/streamlit.log 2>&1 &
+echo "$(</tmp/streamlit.log)"
+echo "Streamlit Enable in port $STREAMLIT_SERVER_PORT!"
 
 # Run streamlit headless
 # NOTE: Running streamlit here caused unexpected issues, please run it from a bash session
@@ -67,7 +84,7 @@ if [[ "${ENABLE_MCP_PROXY:-1}" != "0" ]]; then
 fi
 
 # Wait for background installers to finish before finishing startup so logs are complete.
-wait
+wait -n
 
 # Open the bash
 exec bash
