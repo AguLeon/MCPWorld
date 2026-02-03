@@ -72,11 +72,11 @@ docker compose up -d
 Toggle installers by passing a comma-separated list via `INSTALL_APPS`. Examples:
 
 ```bash
-INSTALL_APPS=freetube,vscode docker compose up -d
+INSTALL_APPS=vscode,obsidian docker compose up -d
 ```
 
 ```bash
-INSTALL_APPS=freetube docker compose up
+INSTALL_APPS=obsidian docker compose up
 ```
 
 ```bash
@@ -174,118 +174,3 @@ cat logs_computer_use_eval/<app-name>_runs/<model-name>_<infrastructure>/result_
 Released under the MIT License.
 
 ---
-
-# Troubleshooting & Midsteps
-
-This section collects the troubleshooting steps and commands we used while getting the repository running. Each command is annotated with **where it should be executed**.
-
-
-## Environment Setup
-
-- **Activate virtual environment (inside container, repo root):**
-
-```bash
-source venv/bin/activate
-```
-
-- **If using Conda base + venv (inside container):**
-
-```bash
-(venv) (base) agent@container:/workspace$ 
-```
-
-
-## Dependency Installation
-
-- **Install requirements (from repo root inside container):**
-
-```bash
-pip install -r computer-use-demo/requirements.txt
-```
-
-- **Reinstalling specific versions of Anthropics/mcp:**
-
-```bash
-pip uninstall -y anthropic mcp
-pip install --upgrade anthropic mcp
-```
-
-- **Check versions (inside container):**
-
-```bash
-python - <<'PY'
-import anthropic, mcp
-print('anthropic:', getattr(anthropic, '__version__','?'))
-print('mcp:', getattr(mcp, '__version__','?'))
-PY
-```
-
-
-## Running noVNC
-
-- **Start noVNC server (inside container):**
-
-```bash
-/usr/share/novnc/utils/novnc_proxy --vnc localhost:5904
-```
-
-- You will see logs like:
-
-```
-WebSocket server settings:
-  - Listen on 0.0.0.0:6080
-  - proxying from 0.0.0.0:6080 to localhost:5904
-```
-
-
-## Streamlit Debugging
-
-- **Launch Streamlit manually (inside repo root in container):**
-
-```bash
-STREAMLIT_SERVER_PORT=8501 python -m streamlit run computer_use_demo/streamlit.py > /tmp/streamlit.log 2>&1 &
-```
-
-- **Follow logs (inside container):**
-
-```bash
-tail -f /tmp/streamlit.log
-```
-
-
-## Common Errors & Fixes
-
-- **ModuleNotFoundError (e.g., `mcp`, `frida`):**
-  → Ensure requirements are installed with `pip install -r ...` inside the container.
-
-- **ImportError with anthropic beta types:**
-  → Fixed by upgrading to latest `anthropic` and `mcp` instead of pinning old versions.
-
-- **Error: `[Errno 2] No such file or directory: 'uv'`:**
-  → Install uv inside container:
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-- **TypeError: `int() argument must be a string, not NoneType` (Telegram API ID/Hash missing):**
-  → Export credentials before running:
-
-```bash
-export TELEGRAM_API_ID=xxxx
-export TELEGRAM_API_HASH=yyyy
-```
-
-- **Task missing `config.json`:**
-  → Ensure you run with correct task IDs. Example working ones:
-
-```bash
-python computer-use-demo/run_pure_computer_use_with_eval.py \
-  --api_key $ANTHROPIC_KEY \
-  --model claude-3-7-sonnet-20250219 \
-  --task_id FreeTube/task01_search \
-  --log_dir logs_computer_use_eval \
-  --exec_mode mixed
-```
-
