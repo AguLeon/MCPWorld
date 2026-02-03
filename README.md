@@ -17,6 +17,11 @@
   - [4. Monitor Headless Runs](#4-monitor-headless-runs)
   - [Running Tests](#running-tests)
   - [Documentation](#documentation)
+  - [Project Structure](#project-structure)
+  - [Quick References](#quick-references)
+    - [Environment Variables](#environment-variables)
+    - [Task Counts](#task-counts)
+    - [Port Mapping](#port-mapping)
   - [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -189,6 +194,87 @@ There are 2 main ways it can be done:
 * **Agents**: Reference implementations in `computer-use-demo/`.
 * **Extension**: Add new apps/tasks/agents as described in docs (Update in progress).
 * **Evaluation**: Black-box and White-box evaluators guarantee objective metrics.
+
+---
+
+## Project Structure
+```
+MCPWorld/
+├── computer-use-demo/           # Agent implementation
+│   ├── computer_use_demo/
+│   │   ├── loop.py              # Main sampling loop
+│   │   ├── providers/           # LLM provider adapters
+│   │   ├── tools/               # Computer use tools
+│   │   ├── mcpclient.py         # MCP client
+│   │   └── streamlit.py         # UI
+│   ├── image/                   # Docker image assets & startup scripts
+│   ├── tests/                   # Unit tests
+│   └── run_pure_computer_use_with_eval.py  # Headless runner
+├── PC-Canary/                   # Evaluation framework (submodule)
+│   ├── evaluator/
+│   │   ├── core/
+│   │   │   ├── base_evaluator.py
+│   │   │   ├── result_collector.py
+│   │   │   └── metrics/
+│   │   └── utils/
+│   ├── tests/
+│   │   ├── tasks/               # Task definitions (vscode: 25, obsidian: 12)
+│   │   └── context_data/        # Pre-configured app states
+│   └── apps/                    # Application source repositories
+├── docker/                      # Container configuration
+│   ├── docker-compose.yml       # Multi-container setup (mcpworld + ollama)
+│   ├── Dockerfile
+│   ├── start_service.sh
+│   └── apps_install_scripts/    # App installation scripts
+├── scripts/                     # Batch execution & metrics collection
+│   ├── config.cfg               # Batch run configuration
+│   ├── models.cfg               # Models to benchmark (NEW)
+│   ├── run_tasks_range.sh       # Generic task range runner
+│   ├── run_vscode_range.sh      # VSCode batch runner
+│   ├── run_obsidian_range.sh    # Obsidian batch runner
+│   ├── run_vscode_then_obsidian_range.sh  # Sequential runner
+│   ├── run_multi_model_benchmark.sh       # Multi-model automation
+│   ├── monitor_gpu.py           # GPU metrics monitoring
+│   ├── kill_all_benchmarks.sh   # Cleanup utility
+│   └── collect_metrics.py       # Results aggregation utility
+└── tools/
+    ├── bootstrap_env.py         # Environment bootstrapper
+    └── manage_ollama_model.py   # Model management
+```
+
+
+---
+
+## Quick References
+### Environment Variables
+
+| Variable            | Description                     | Default                              |
+|---------------------|---------------------------------|--------------------------------------|
+| ANTHROPIC_API_KEY   | Anthropic API key               | dummy_api_key                        |
+| OPENAI_BASE_URL     | OpenAI-compatible endpoint      | http://host.docker.internal:11434    |
+| OPENAI_ENDPOINT     | API endpoint path               | /v1/chat/completions                 |
+| OPENAI_TIMEOUT      | Request timeout                 | 1000                                 |
+| WIDTH               | Screen width                    | 1000                                 |
+| HEIGHT              | Screen height                   | 1000                                 |
+| OLLAMA_KEEP_ALIVE   | Model keep-alive duration       | 24h                                  |
+| LLM_TEMPERATURE     | Model temperature               | 0.7                                  |
+
+
+### Task Counts
+| Application | Task Count      |
+|------------|-----------------|
+| VSCode     | 25 tasks        |
+| Obsidian   | 12 tasks        |
+| Telegram   | Multiple tasks  |
+
+### Port Mapping
+| Port  | Service                 |
+|-------|--------------------------|
+| 5900  | VNC Server (legacy)      |
+| 5904  | VNC Server (active)      |
+| 6080  | noVNC Web Proxy          |
+| 8501  | Streamlit UI             |
+| 11434 | Ollama API               |
 
 ---
 
