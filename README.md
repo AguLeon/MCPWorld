@@ -31,6 +31,11 @@ MCPWorld is an open-source benchmarking framework designed for evaluating **Comp
 
 ---
 
+## Overview
+![Brief overview of this project](docs/mcpworld_system.png)
+
+---
+
 ## 📦 Installation
 
 ### Prerequisites
@@ -143,6 +148,31 @@ cat logs_computer_use_eval/<app-name>_runs/<model-name>_<infrastructure>/result_
 
 - `tail -f …_evaluator.log`: Follow real-time output from the evaluator—tool calls, key-step hits, and final TASK_END status.
 - `cat result_….json`: Dump the ResultCollector snapshot (success flag, duration, key-step coverage, token/tool stats). Load it into `jq`/Python for deeper analysis.
+
+---
+
+## Running Tests
+After the environment, is created, necessary services are created, and the apps to be tested are installed, now is time to run the test!
+There are 2 main ways it can be done:
+- From the host machine
+    - Running multiple tests across LLM models (`./scripts/run_multi_model_benchmark.sh`)
+- From the docker container (`mcpworld`)
+    - Running multiple tests for single LLM Model (`/workspace/scripts/run_tasks_range.sh`)
+    - Running individual tests for single LLM models
+        ```bash
+        python3 computer-use-demo/run_pure_computer_use_with_eval.py \
+        --provider "$PROVIDER" \
+        --openai_api_key dummy \
+        --openai_base_url "$OPENAI_BASE_URL" \
+        --openai_endpoint "$OPENAI_ENDPOINT" \
+        --model "$MODEL" \
+        --task_id "$TASK_ID" \
+        --log_dir "$RUN_LOG_DIR" \
+        --exec_mode "$EXEC_MODE" \
+        --timeout "$TASK_TIMEOUT" \
+        --api_key "$ANTHROPIC_API_KEY"
+        ```
+- You can use the batch tests to run the entire benchmark suite while the individual tests is useful for debugging and testing various aspect of this project
 
 ---
 
