@@ -1,10 +1,8 @@
 # MCPWorld: A Multi-Modal Test Platform for Computer-Using Agents (CUA)
 
 ## Pending stuff from AN-AL review:
- - Remove emojis
  - Add table contents
  - Add a link to a sample json files (that looks nice)
- - Remove the install apps from docker bc never worked
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Docker](https://img.shields.io/badge/Docker-Supported-green.svg)
 
@@ -12,7 +10,7 @@ MCPWorld is an open-source benchmarking framework designed for evaluating **Comp
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
 * **Comprehensive Task Suite**
 
@@ -42,7 +40,7 @@ MCPWorld is an open-source benchmarking framework designed for evaluating **Comp
 
 ---
 
-## 📦 Installation
+## Installation
 
 ### Prerequisites
 
@@ -65,7 +63,7 @@ git submodule update --init --recursive
 Then open the folder in VS Code and select **Reopen in Container**
 
 ---
-## 🚩 Quickstart
+## Quickstart
 
 Kick off MCPWorld environment with the essentials below/ Each step explains what the command accomplishes so the system can be run with confidence. These can be done directly after cloning the repository and its sub-modules.
 
@@ -78,26 +76,7 @@ cd ~/MCPWorld/docker
 docker compose up -d
 ```
 
-### Optional: install extra apps while the container starts
-
-Toggle installers by passing a comma-separated list via `INSTALL_APPS`. Examples:
-
-```bash
-INSTALL_APPS=vscode,obsidian docker compose up -d
-```
-
-```bash
-INSTALL_APPS=obsidian docker compose up
-```
-
-```bash
-# No additional installers (default)
-docker compose up
-```
-
-- Supported values today: `vscode`, `obsidian`.
-- Installers run during container startup; logs land in `/tmp/obsidian_install.log` or `/tmp/vscode_install.log` inside the container.
-- If sudo needs a password during install, set `SUDO_PASSWORD` (defaults to `123` inside the dev container).
+- SUDO password for `mcpworld` environment : `123`
 
 ### **What starts automatically:**
 `docker compose up` launches 2 containers; `mcpworld` and `ollama`:
@@ -106,7 +85,6 @@ docker compose up
     - The noVNC web proxy (port `6080`),
     - Streamlit to demo LLM and agent's action (port 8501)
     - All the packages specified in `computer-use-demo/computer_use_demo/requirements.txt`
-    - Any apps listed in `INSTALL_APPS` in `docker/docker-compose.yml` are built/installed
 - The `ollama` container runs a Ollama server
 
 #### NOTE:
@@ -182,7 +160,7 @@ There are 2 main ways it can be done:
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 * **Manual Environment Setup**: To see how the environment is set-up step by step, see 
 * **Tasks**: See `PC-Canary/tests/tasks/` for JSON/JS/Python configs.
@@ -205,7 +183,7 @@ There are 2 main ways it can be done:
 
 <!-- --- -->
 
-## 📝 License
+## License
 
 Released under the MIT License.
 
