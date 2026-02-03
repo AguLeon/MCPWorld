@@ -1,5 +1,11 @@
 # MCPWorld: A Multi-Modal Test Platform for Computer-Using Agents (CUA)
 
+## Pending stuff from AN-AL review:
+ - Remove emojis
+ - Add table contents
+ - Add a link to a sample json files (that looks nice)
+ - Remove the install apps from docker bc never worked
+
 ![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Docker](https://img.shields.io/badge/Docker-Supported-green.svg)
 
 MCPWorld is an open-source benchmarking framework designed for evaluating **Computer-Using Agents (CUAs)**. It supports agents that interact with software applications via **GUI**, **API (Model Context Protocol – MCP)**, or **Hybrid** methods.
