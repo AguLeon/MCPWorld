@@ -73,8 +73,8 @@ OBSIDIAN_END=12
 # Define models to benchmark (edit this list as needed)
 MODELS=(
     "qwen3-vl:8b-instruct"
-    "qwen3-vl:235b-a22b-instruct"
-    "qwen3-vl:235b"
+    # "qwen3-vl:235b-a22b-instruct"
+    # "qwen3-vl:235b"
     "qwen3-vl:32b"
     "qwen3-vl:32b-instruct"
     "qwen3-vl:2b-instruct"
@@ -82,11 +82,11 @@ MODELS=(
     "ministral-3:14b-instruct-2512-fp16"
     "devstral-small-2:24b"
     "seamon67/Gemma3:27b"
-    "gemma3-tools:4b"
-    "gemma3-tools:12b"
-    "gemma3-tools:27b"
-    "llama4:17b-scout-16e-instruct-q4_K_M"
-    "llama4:17b-scout-16e-instruct-q8_0"
+    "PetrosStav/gemma3-tools:4b"
+    "PetrosStav/gemma3-tools:12b"
+    "PetrosStav/gemma3-tools:27b"
+    # "llama4:17b-scout-16e-instruct-q4_K_M"
+    # "llama4:17b-scout-16e-instruct-q8_0"
 )
 
 # You can also read from a file:
