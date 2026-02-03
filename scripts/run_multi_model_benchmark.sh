@@ -107,8 +107,8 @@ clean_ollama() {
 load_model() {
     local model=$1
     echo "[$(date +%H:%M:%S)] Loading model: $model"
-    # Run the model (pulls if needed, then exits immediately)
-    docker exec "$OLLAMA_CONTAINER" ollama run "$model" --keepalive 0 </dev/null || {
+    # Run the model (pulls if needed)
+    docker exec "$OLLAMA_CONTAINER" ollama run "$model" --keepalive=-1h </dev/null || {
         echo "ERROR: Failed to load model $model"
         return 1
     }
