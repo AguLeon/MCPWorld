@@ -13,6 +13,9 @@
 #   ./run_multi_model_benchmark.sh                      # Both with default tag
 set -euo pipefail
 
+# The absolute script path
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
 # Configuration (must be before cleanup function)
 OLLAMA_CONTAINER="ollama"
 MCPWORLD_CONTAINER="mcpworld"
@@ -70,24 +73,8 @@ VSCODE_END=25
 OBSIDIAN_START=1
 OBSIDIAN_END=12
 
-# Define models to benchmark (edit this list as needed)
-MODELS=(
-    "qwen3-vl:8b-instruct"
-    # "qwen3-vl:235b-a22b-instruct"
-    # "qwen3-vl:235b"
-    "qwen3-vl:32b"
-    "qwen3-vl:32b-instruct"
-    "qwen3-vl:2b-instruct"
-    "ministral-3:8b-instruct-2512-fp16"
-    "ministral-3:14b-instruct-2512-fp16"
-    "devstral-small-2:24b"
-    "seamon67/Gemma3:27b"
-    "PetrosStav/gemma3-tools:4b"
-    "PetrosStav/gemma3-tools:12b"
-    "PetrosStav/gemma3-tools:27b"
-    # "llama4:17b-scout-16e-instruct-q4_K_M"
-    # "llama4:17b-scout-16e-instruct-q8_0"
-)
+# Source models to benchmark list
+source "$SCRIPT_DIR/models.cfg"
 
 # You can also read from a file:
 # mapfile -t MODELS < models.txt
@@ -175,22 +162,34 @@ run_benchmark() {
     case "$bench_type" in
     vscode)
         start_gpu_monitor vscode
-        run_suite "$model" vscode "$infra_tag" $VSCODE_START $VSCODE_END || { stop_gpu_monitor; return 1; }
+        run_suite "$model" vscode "$infra_tag" $VSCODE_START $VSCODE_END || {
+            stop_gpu_monitor
+            return 1
+        }
         stop_gpu_monitor
         ;;
     obsidian)
         start_gpu_monitor obsidian
-        run_suite "$model" obsidian "$infra_tag" $OBSIDIAN_START $OBSIDIAN_END || { stop_gpu_monitor; return 1; }
+        run_suite "$model" obsidian "$infra_tag" $OBSIDIAN_START $OBSIDIAN_END || {
+            stop_gpu_monitor
+            return 1
+        }
         stop_gpu_monitor
         ;;
     both)
         start_gpu_monitor vscode
-        run_suite "$model" vscode "$infra_tag" $VSCODE_START $VSCODE_END || { stop_gpu_monitor; return 1; }
+        run_suite "$model" vscode "$infra_tag" $VSCODE_START $VSCODE_END || {
+            stop_gpu_monitor
+            return 1
+        }
         stop_gpu_monitor
         echo "[$(date +%H:%M:%S)] VSCode completed, waiting 5s before Obsidian..."
         sleep 5
         start_gpu_monitor obsidian
-        run_suite "$model" obsidian "$infra_tag" $OBSIDIAN_START $OBSIDIAN_END || { stop_gpu_monitor; return 1; }
+        run_suite "$model" obsidian "$infra_tag" $OBSIDIAN_START $OBSIDIAN_END || {
+            stop_gpu_monitor
+            return 1
+        }
         stop_gpu_monitor
         ;;
     esac
