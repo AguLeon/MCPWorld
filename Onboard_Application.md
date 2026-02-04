@@ -1,3 +1,45 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Onboard Applications](#onboard-applications)
+  - [System Architecture Overview](#system-architecture-overview)
+    - [Task File Structure](#task-file-structure)
+  - [Part 1: Installing the Application](#part-1-installing-the-application)
+    - [1.1 Container Environment](#11-container-environment)
+    - [1.2 Installation Methods](#12-installation-methods)
+      - [Method A: APT Package Manager](#method-a-apt-package-manager)
+      - [Method B: Flatpak](#method-b-flatpak)
+      - [Method C: Clone/Fork and Build (Developer Version)](#method-c-clonefork-and-build-developer-version)
+      - [Method D: AppImage](#method-d-appimage)
+    - [1.3 Making the Application Discoverable](#13-making-the-application-discoverable)
+      - [1.5 Verification](#15-verification)
+  - [Part 2: Adding Tasks and Evaluator](#part-2-adding-tasks-and-evaluator)
+    - [2.1 Understanding Context Data](#21-understanding-context-data)
+    - [2.2 Creating Task Directory Structure](#22-creating-task-directory-structure)
+    - [2.3 Creating config.json](#23-creating-configjson)
+    - [2.4 Creating handler.py](#24-creating-handlerpy)
+    - [2.5 Creating hooker.js (Optional)](#25-creating-hookerjs-optional)
+    - [2.6 Choosing the Right Evaluator Type](#26-choosing-the-right-evaluator-type)
+    - [2.7 Adding MCP Support (Optional)](#27-adding-mcp-support-optional)
+  - [Part 3: Testing Your Integration](#part-3-testing-your-integration)
+    - [3.1 Manual Testing](#31-manual-testing)
+    - [3.2 Run with Agent](#32-run-with-agent)
+    - [3.3 Check Results](#33-check-results)
+  - [Checklist for New Application Onboarding](#checklist-for-new-application-onboarding)
+    - [Application Installation](#application-installation)
+    - [Context Data](#context-data)
+    - [Task Configuration](#task-configuration)
+    - [Testing](#testing)
+  - [Example: Complete Onboarding for a New App](#example-complete-onboarding-for-a-new-app)
+    - [1. Installation Script](#1-installation-script)
+    - [2. Context Data](#2-context-data)
+    - [3. Task Config](#3-task-config)
+    - [4. Handler](#4-handler)
+  - [Key things to consider when on-boarding new applications](#key-things-to-consider-when-on-boarding-new-applications)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Onboard Applications
 This guide covers the complete process of adding a new application for agent benchmarking and evaluation.
 
