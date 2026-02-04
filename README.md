@@ -1,34 +1,24 @@
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-# MCPWorld: A Multi-Modal Test Platform for Computer-Using Agents (CUA)
-
-![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Docker](https://img.shields.io/badge/Docker-Supported-green.svg)
-
-MCPWorld is an open-source benchmarking framework designed for evaluating **Computer-Using Agents (CUAs)**. It supports agents that interact with software applications via **GUI**, **API (Model Context Protocol – MCP)**, or **Hybrid** methods.
-
-
-**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
-
-  - [Key Features](#key-features)
-  - [Overview](#overview)
-  - [Installation](#installation)
-    - [Prerequisites](#prerequisites)
-    - [Quick Setup](#quick-setup)
-  - [Quickstart](#quickstart)
-  - [1. Start the Docker Workspace](#1-start-the-docker-workspace)
-    - [What starts automatically:](#what-starts-automatically)
-  - [2. Install the apps to be tested(Inside `mcpworld` container)](#2-install-the-apps-to-be-testedinside-mcpworld-container)
-  - [3. Test multiple Ollama automatically (In Host machine)](#3-test-multiple-ollama-automatically-in-host-machine)
-  - [4. Monitor Headless Runs](#4-monitor-headless-runs)
-  - [Running Tests](#running-tests)
-  - [Documentation](#documentation)
-  - [Project Structure](#project-structure)
-  - [Quick References](#quick-references)
-    - [Environment Variables](#environment-variables)
-    - [Task Counts](#task-counts)
-    - [Port Mapping](#port-mapping)
-  - [License](#license)
+- [Key Features](#key-features)
+- [Overview](#overview)
+- [Prerequisites](#prerequisites)
+- [Quickstart](#quickstart)
+- [0. Cloning the repo](#0-cloning-the-repo)
+- [1. Start the Docker Workspace](#1-start-the-docker-workspace)
+  - [What starts automatically:](#what-starts-automatically)
+- [2. Install the apps to be tested(Inside `mcpworld` container)](#2-install-the-apps-to-be-testedinside-mcpworld-container)
+- [3. Test multiple Ollama automatically (In Host machine)](#3-test-multiple-ollama-automatically-in-host-machine)
+- [4. Monitor Headless Runs](#4-monitor-headless-runs)
+- [Running Tests](#running-tests)
+- [Documentation](#documentation)
+- [Project Structure](#project-structure)
+- [Quick References](#quick-references)
+  - [Environment Variables](#environment-variables)
+  - [Task Counts](#task-counts)
+  - [Port Mapping](#port-mapping)
+- [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -64,15 +54,18 @@ MCPWorld is an open-source benchmarking framework designed for evaluating **Comp
 
 ---
 
-## Installation
-
-### Prerequisites
+## Prerequisites
 
 * Docker
-* (Optional) VS Code + DevContainers extension
+* Nvidia Container Toolkit (For Docker container to access GPU resource)
+- For the instance resource setup allocation in ChameleonCloud, please follow [this notebook](https://github.com/AguLeon/MCP_SLM_Project/blob/main/start_run_instance.ipynb) in ChameleonCloud Trovi Experiment
 
-### Quick Setup
+---
+## Quickstart
 
+Kick off MCPWorld environment with the essentials below/ Each step explains what the command accomplishes so the system can be run with confidence. These can be done directly after cloning the repository and its sub-modules.
+
+## 0. Cloning the repo
 ```bash
 git clone https://github.com/AguLeon/MCPWorld
 cd MCPWorld
@@ -83,13 +76,6 @@ We also want to clone downstream linked repositories to the open-source apps we 
 ```bash
 git submodule update --init --recursive
 ```
-
-Then open the folder in VS Code and select **Reopen in Container**
-
----
-## Quickstart
-
-Kick off MCPWorld environment with the essentials below/ Each step explains what the command accomplishes so the system can be run with confidence. These can be done directly after cloning the repository and its sub-modules.
 
 ## 1. Start the Docker Workspace
 
@@ -166,20 +152,32 @@ There are 2 main ways it can be done:
     - Running multiple tests across LLM models (`./scripts/run_multi_model_benchmark.sh`)
 - From the docker container (`mcpworld`)
     - Running multiple tests for single LLM Model (`/workspace/scripts/run_tasks_range.sh`)
-    - Running individual tests for single LLM models
-        ```bash
-        python3 computer-use-demo/run_pure_computer_use_with_eval.py \
-        --provider "$PROVIDER" \
-        --openai_api_key dummy \
-        --openai_base_url "$OPENAI_BASE_URL" \
-        --openai_endpoint "$OPENAI_ENDPOINT" \
-        --model "$MODEL" \
-        --task_id "$TASK_ID" \
-        --log_dir "$RUN_LOG_DIR" \
-        --exec_mode "$EXEC_MODE" \
-        --timeout "$TASK_TIMEOUT" \
-        --api_key "$ANTHROPIC_API_KEY"
-        ```
+```bash
+./scripts/run_tasks_range.sh [app-name] [start-task] [end-task]
+
+# E.g. To run a range
+./scripts/run_tasks_range.sh [app-name] 1 10  # Will run tasks 1 to 10 for [app-test]
+
+# E.g. To just run one task
+./scripts/run_tasks_range.sh [app-name] 2 2  # Will only run task 2 from [app-name] test tasks
+
+```
+
+
+    <!-- - Running individual tests for single LLM models -->
+    <!--     ```bash -->
+    <!--     python3 computer-use-demo/run_pure_computer_use_with_eval.py \ -->
+    <!--     --provider "$PROVIDER" \ -->
+    <!--     --openai_api_key dummy \ -->
+    <!--     --openai_base_url "$OPENAI_BASE_URL" \ -->
+    <!--     --openai_endpoint "$OPENAI_ENDPOINT" \ -->
+    <!--     --model "$MODEL" \ -->
+    <!--     --task_id "$TASK_ID" \ -->
+    <!--     --log_dir "$RUN_LOG_DIR" \ -->
+    <!--     --exec_mode "$EXEC_MODE" \ -->
+    <!--     --timeout "$TASK_TIMEOUT" \ -->
+    <!--     --api_key "$ANTHROPIC_API_KEY" -->
+    <!--     ``` -->
 - You can use the batch tests to run the entire benchmark suite while the individual tests is useful for debugging and testing various aspect of this project
 
 ---
