@@ -172,21 +172,21 @@ There are 2 main ways it can be done:
 ```
 
 
-    <!-- - Running individual tests for single LLM models -->
-    <!--     ```bash -->
-    <!--     python3 computer-use-demo/run_pure_computer_use_with_eval.py \ -->
-    <!--     --provider "$PROVIDER" \ -->
-    <!--     --openai_api_key dummy \ -->
-    <!--     --openai_base_url "$OPENAI_BASE_URL" \ -->
-    <!--     --openai_endpoint "$OPENAI_ENDPOINT" \ -->
-    <!--     --model "$MODEL" \ -->
-    <!--     --task_id "$TASK_ID" \ -->
-    <!--     --log_dir "$RUN_LOG_DIR" \ -->
-    <!--     --exec_mode "$EXEC_MODE" \ -->
-    <!--     --timeout "$TASK_TIMEOUT" \ -->
-    <!--     --api_key "$ANTHROPIC_API_KEY" -->
-    <!--     ``` -->
-- You can use the batch tests to run the entire benchmark suite while the individual tests is useful for debugging and testing various aspect of this project
+<!-- - Running individual tests for single LLM models -->
+<!--     ```bash -->
+<!--     python3 computer-use-demo/run_pure_computer_use_with_eval.py \ -->
+<!--     --provider "$PROVIDER" \ -->
+<!--     --openai_api_key dummy \ -->
+<!--     --openai_base_url "$OPENAI_BASE_URL" \ -->
+<!--     --openai_endpoint "$OPENAI_ENDPOINT" \ -->
+<!--     --model "$MODEL" \ -->
+<!--     --task_id "$TASK_ID" \ -->
+<!--     --log_dir "$RUN_LOG_DIR" \ -->
+<!--     --exec_mode "$EXEC_MODE" \ -->
+<!--     --timeout "$TASK_TIMEOUT" \ -->
+<!--     --api_key "$ANTHROPIC_API_KEY" -->
+<!--     ``` -->
+<!-- - You can use the batch tests to run the entire benchmark suite while the individual tests is useful for debugging and testing various aspect of this project -->
 
 ---
 
