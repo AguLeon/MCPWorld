@@ -1,8 +1,10 @@
+# Onboard Applications
+This guide covers the complete process of adding a new application for agent benchmarking and evaluation.
+
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
-- [Onboard Applications](#onboard-applications)
   - [System Architecture Overview](#system-architecture-overview)
     - [Task File Structure](#task-file-structure)
   - [Part 1: Installing the Application](#part-1-installing-the-application)
@@ -39,10 +41,7 @@
   - [Key things to consider when on-boarding new applications](#key-things-to-consider-when-on-boarding-new-applications)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
-
-# Onboard Applications
-This guide covers the complete process of adding a new application for agent benchmarking and evaluation.
-
+--- 
 ## System Architecture Overview
 
 ![Brief overview of this project](docs/mcpworld_system.png)
@@ -62,6 +61,8 @@ tests/tasks/{app_name}/{task_id}_{task_name}/
 ├── hooker.js        # (Optional) WebSocket connection to app internal state
 └── handler.py       # Evaluation logic functions
 ```
+
+---
 
 ## Part 1: Installing the Application
 ### 1.1 Container Environment
@@ -200,6 +201,8 @@ myapp --version
 export DISPLAY=:4
 myapp &
 ```
+
+---
 
 ## Part 2: Adding Tasks and Evaluator
 
@@ -454,6 +457,8 @@ If your application has an MCP server, configure it in the task:
 }
 ```
 
+---
+
 ## Part 3: Testing Your Integration
 ### 3.1 Manual Testing
 ```bash
@@ -495,6 +500,8 @@ tail -f logs_computer_use_eval/<timestamp>/myapp_task01_exampleTask_evaluator.lo
 cat logs_computer_use_eval/<timestamp>/result_myapp_task01_*.json | jq .
 ```
 
+---
+
 ## Checklist for New Application Onboarding
 ### Application Installation
 - [ ] Application runs on Ubuntu 22.04
@@ -522,6 +529,8 @@ cat logs_computer_use_eval/<timestamp>/result_myapp_task01_*.json | jq .
 - [ ] Standalone evaluator test passes
 - [ ] Full agent + evaluator test passes
 - [ ] Results JSON generated correctly
+
+---
 
 ## Example: Complete Onboarding for a New App
 This is the process to onboarding a hypothetical "NoteTaker" application:
@@ -655,6 +664,7 @@ def message_handler(message: Dict[str, Any], logger, task_parameter: Dict[str, A
     return None
 ```
 
+---
 
 ## Key things to consider when on-boarding new applications
 1. Consistent Installation: Ensure applications are discoverable via which
