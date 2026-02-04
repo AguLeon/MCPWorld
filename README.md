@@ -222,19 +222,16 @@ MCPWorld/
 │   ├── start_service.sh
 │   └── apps_install_scripts/    # App installation scripts
 ├── scripts/                     # Batch execution & metrics collection
-│   ├── config.cfg               # Batch run configuration
-│   ├── models.cfg               # Models to benchmark (NEW)
-│   ├── run_tasks_range.sh       # Generic task range runner
-│   ├── run_vscode_range.sh      # VSCode batch runner
-│   ├── run_obsidian_range.sh    # Obsidian batch runner
-│   ├── run_vscode_then_obsidian_range.sh  # Sequential runner
-│   ├── run_multi_model_benchmark.sh       # Multi-model automation
-│   ├── monitor_gpu.py           # GPU metrics monitoring
-│   ├── kill_all_benchmarks.sh   # Cleanup utility
-│   └── collect_metrics.py       # Results aggregation utility
-└── tools/
-    ├── bootstrap_env.py         # Environment bootstrapper
-    └── manage_ollama_model.py   # Model management
+    ├── config.cfg               # Batch run configuration
+    ├── models.cfg               # Models to benchmark (NEW)
+    ├── run_tasks_range.sh       # Generic task range runner
+    ├── run_vscode_range.sh      # VSCode batch runner
+    ├── run_obsidian_range.sh    # Obsidian batch runner
+    ├── run_vscode_then_obsidian_range.sh  # Sequential runner
+    ├── run_multi_model_benchmark.sh       # Multi-model automation
+    ├── monitor_gpu.py           # GPU metrics monitoring
+    ├── kill_all_benchmarks.sh   # Cleanup utility
+    └── collect_metrics.py       # Results aggregation utility
 ```
 
 
