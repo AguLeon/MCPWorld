@@ -24,17 +24,45 @@ DOCKER_STATS_CMD = 'docker stats ollama --no-stream --format "{{.CPUPerc}},{{.Me
 
 
 def poll_gpu(cmd: str) -> list[str] | None:
-    """Run nvidia-smi and return parsed values, or None on failure."""
+    """Run nvidia-smi and return aggregated values across all GPUs.
+
+    Returns [avg_util, total_vram, max_temp, total_power] or None on failure.
+    Handles multi-GPU systems by aggregating metrics.
+    """
     try:
         result = subprocess.run(
             cmd, shell=True, capture_output=True, text=True, timeout=5
         )
         if result.returncode != 0:
             return None
-        values = [v.strip() for v in result.stdout.strip().split(",")]
-        if len(values) != 4:
+
+        lines = result.stdout.strip().split("\n")
+        if not lines:
             return None
-        return values
+
+        utils, vrams, temps, powers = [], [], [], []
+        for line in lines:
+            values = [v.strip() for v in line.split(",")]
+            if len(values) != 4:
+                continue
+            try:
+                utils.append(float(values[0]))
+                vrams.append(float(values[1]))
+                temps.append(float(values[2]))
+                powers.append(float(values[3]))
+            except ValueError:
+                continue
+
+        if not utils:
+            return None
+
+        # Aggregate: avg util, sum vram, max temp, sum power
+        return [
+            str(round(sum(utils) / len(utils), 1)),  # avg utilization
+            str(round(sum(vrams), 1)),                # total VRAM
+            str(round(max(temps), 1)),                # max temperature
+            str(round(sum(powers), 2)),               # total power
+        ]
     except Exception:
         return None
 
