@@ -46,7 +46,7 @@ This guide covers the complete process of adding a new application for agent ben
 
 ![Brief overview of this project](docs/mcpworld_system.png)
 
-The MCPWorld evaluation system consists of four main components:
+The OpenMCP evaluation system consists of four main components:
 | Component       | Description                                                                                                   |
 |-----------------|---------------------------------------------------------------------------------------------------------------|
 | Task            | Contains config.json (parameters), hooker.js (internal state inspector), and handler.py (evaluation logic)    |
@@ -66,7 +66,7 @@ tests/tasks/{app_name}/{task_id}_{task_name}/
 
 ## Part 1: Installing the Application
 ### 1.1 Container Environment
-MCPWorld runs on Ubuntu 22.04 inside Docker containers. Applications must be installable and runnable within this environment.
+OpenMCP runs on Ubuntu 22.04 inside Docker containers. Applications must be installable and runnable within this environment.
 
 ### 1.2 Installation Methods
 Choose the appropriate installation method for your application:
