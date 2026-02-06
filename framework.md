@@ -11,6 +11,7 @@ This document summarizes the evaluation framework used in this repository. The f
   - [Tasks and context](#tasks-and-context)
   - [Evaluation and tracing](#evaluation-and-tracing)
   - [Application and model support](#application-and-model-support)
+- [Overview of the system](#overview-of-the-system)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
