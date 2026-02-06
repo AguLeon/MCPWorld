@@ -192,7 +192,7 @@ There are 2 main ways it can be done:
 
 ## Documentation
 
-* **Framework Overview**: Please refer to the [framework guide](./framework.md)
+* **Framework Overview**: Please refer to the [framework overview](./framework.md)
 * **Test Runner**: Please refer to the [test scripts details](./scripts/README.md)
 * **Onboaring New Applications and Test**: Please refer to the [onboading guide](./onboard-application.md)
 
