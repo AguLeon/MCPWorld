@@ -55,4 +55,7 @@ The framework supports GUI-only applications and applications with MCP interface
 
 Model backends are configured through `models.cfg`, which enables controlled comparisons across model families and serving stacks. Screen resolution is treated as an experimental parameter because it can affect coordinate prediction accuracy in GUI actions, especially for vision-language models.
 
+## Overview of the system
+![Overview](docs/mcpworld_system.png)
+
 **For Depth Description**: Please look up the [onboarding application guide](./onboard-application.md)

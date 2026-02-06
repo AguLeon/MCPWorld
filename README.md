@@ -58,7 +58,7 @@ MCPWorld is an open-source benchmarking framework designed for evaluating **Comp
 ---
 
 ## Overview
-![Brief overview of this project](docs/mcpworld_system.png)
+![Brief overview of this project](docs/architecture.png)
 
 ---
 
