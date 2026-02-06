@@ -30,11 +30,17 @@ This section describes the MCPWorld evaluation framework architecture, consistin
 
 #### 1.1 Applications and Virtual Desktop
 
-The MCPWorld container provides the primary execution environment, running Ubuntu 22.04 with all target applications installed (VSCode, Obsidian, Telegram, FreeTube, etc.). A virtual desktop is served via TurboVNC on port 5904 and exposed through noVNC on port 6080 for browser-based access. This containerized approach ensures consistent, reproducible evaluation conditions across different host systems and eliminates variability from local software configurations or operating system differences.
+The MCPWorld container provides the primary execution environment, running Ubuntu 22.04 with target applications installed (VSCode, Obsidian, etc.). A virtual desktop is served via TurboVNC on port 5904 and exposed through noVNC on port 6080 for browser-based access. This containerized approach ensures consistent, reproducible evaluation conditions across different host systems and eliminates variability from local software configurations or operating system differences.
 
 #### 1.2 LLM Container
 
-A dedicated Ollama container serves locally-hosted language models through an OpenAI-compatible API on port 11434. Self-hosting provides two key advantages: full control over the inference environment and access to fine-grained resource metrics. The host monitors GPU utilization, VRAM consumption, temperature, and power draw via nvidia-smi polling throughout each task, logging measurements to CSV files for post-hoc analysis. These metrics—unavailable when using external APIs—enable cost estimation, bottleneck identification, and energy consumption comparisons across model configurations.
+A dedicated Ollama container serves locally-hosted language models through an OpenAI-compatible API on port 11434.
+Self-hosting provides two key advantages:
+- Full control over the inference environment
+- Access to fine-grained resource metrics.
+
+The host monitors GPU utilization, VRAM consumption, temperature, and power draw via `nvidia-smi` polling throughout each task, logging measurements to CSV files for post-hoc analysis.
+These metrics, which are unavailable when using external APIs, enable cost estimation, bottleneck identification, and energy consumption comparisons across model configurations.
 
 ---
 
@@ -46,7 +52,7 @@ The agent client orchestrates task execution through a Plan-Act-Observe loop imp
 
 For GUI interactions, the client executes actions in the virtual desktop using xdotool for mouse and keyboard control, capturing screenshots as visual observations. The available tools span three modalities: GUI operations (click, type, screenshot), shell commands (bash execution), and MCP API calls when applications expose them.
 
-**Trace Production.** The evaluator instruments every agent action by recording LLM query timestamps, tool invocations, arguments, and results. For applications supporting internal state inspection—such as VSCode via Socket.IO—`hooker.js` scripts inject into the application runtime to emit real-time events (e.g., file saved, theme changed, extension installed). These events, combined with filesystem state changes monitored by the evaluator, form comprehensive action traces used for evaluation.
+**Trace Production.** The evaluator instruments every agent action by recording LLM query timestamps, tool invocations, arguments, and results. For applications supporting internal state inspection (e.g. VSCode via Socket.IO) `hooker.js` script injects into the application runtime to emit real-time events (e.g., file saved, theme changed, extension installed). These events, combined with filesystem state changes monitored by the evaluator, give comprehensive action traces used for evaluation.
 
 #### 2.2 Tasks
 
@@ -56,7 +62,7 @@ A task defines a single benchmark instance requiring three components:
 - **Evaluation Logic** (`handler.py`): Contains validation functions that check whether the agent achieved the intended outcome by inspecting application state, file contents, or emitted events.
 - **Context Data**: Initial files, application configuration, and state (e.g., vault contents for Obsidian, workspace settings for VSCode) that simulate realistic usage scenarios.
 
-Context data is copied to a working directory before each run via rsync, preserving original files for reproducibility. This isolation ensures the evaluator can detect modifications made by the agent while maintaining a clean baseline for subsequent runs.
+Context data is copied to a working directory before each run via `rsync`, preserving original files for reproducibility. This isolation ensures the evaluator can detect modifications made by the agent while maintaining a clean baseline for subsequent runs.
 
 #### 2.3 Evaluator
 
@@ -67,26 +73,30 @@ The evaluation pipeline operates in four stages:
 3. **Validation**: Upon task completion or timeout, `handler.py` executes validation logic, checking key-step completion and comparing outcomes against ground truth.
 4. **Aggregation**: Results are compiled into JSON logs containing raw events and computed metrics.
 
-**Computed Metrics.** The evaluator extracts metrics from traces including: task duration, time to first token, LLM call count, tool usage statistics (success/failure rates per tool type), key-step completion ratio, and token consumption. Quality indicators detect failure modes—loop detection identifies repeated actions without progress, and hallucination detection flags calls to non-existent tools or malformed parameters.
+**Computed Metrics.** The evaluator extracts metrics from traces including: task duration, time to first token, LLM call count, tool usage statistics (success/failure rates per tool type), key-step completion ratio, and token consumption. Quality indicators detect failure modes, loop detection identifies repeated actions without progress, and hallucination detection flags calls to non-existent tools or malformed parameters.
 
 #### 2.4 End-to-End Execution
 
 A complete evaluation run proceeds through four phases:
 
-1. **Environment Initialization**: Containers start; models are loaded into GPU memory via Ollama.
+1. **Environment Initialization**: Containers start and models are loaded into GPU memory via Ollama.
 2. **Task Setup**: The evaluator restores context data and launches target applications in the virtual desktop.
 3. **Agent Execution**: The client runs the Plan-Act-Observe loop, sending observations to the LLM and executing returned tool calls until the task completes, times out, or encounters an unrecoverable error.
-4. **Result Collection**: The evaluator computes final metrics, generates reports, and saves JSON logs for analysis.
+4. **Result Collection**: The evaluator computes final metrics, generates reports, and saves results as JSON files for analysis.
 
 ---
 
 ### 3. LLM Support
 
-The framework supports three provider categories: self-hosted models via Ollama (enabling detailed resource monitoring), Anthropic models via external API, and any OpenAI-compatible endpoint (vLLM, LM Studio, etc.).
+The framework supports three provider categories:
+- Self-hosted models via Ollama (enabling detailed resource monitoring)
+- Anthropic models via external API
+- OpenAI-compatible endpoint (vLLM, LM Studio, etc.)
 
 **Supported Model Families.** Vision-language models enabling GUI interaction include Qwen3-VL (2B to 235B parameters), Gemma3-tools, Llama4, Ministral, and Devstral. Claude models (3.5/3.7 Sonnet) are supported via Anthropic API or cloud providers (Bedrock, Vertex).
 
-**Resolution Sensitivity.** Screen resolution significantly affects model performance. Qwen family models require square resolutions (e.g., 1000×1000) for accurate coordinate prediction in GUI tasks, while Claude performs optimally with rectangular resolutions (e.g., 1024×768). Models are configured via `models.cfg`; adding new Ollama-compatible models requires only appending entries to this file.
+
+**NOTE: Resolution Sensitivity.** Screen resolution significantly affects model performance. Qwen family models require square resolutions (e.g., 1000×1000) for accurate coordinate prediction in GUI tasks, while Claude performs optimally with rectangular resolutions (e.g., 1024×768). Models are configured via `models.cfg`. Adding new Ollama-compatible models requires only appending entries to this file.
 
 ---
 
@@ -96,6 +106,9 @@ MCPWorld accommodates both GUI and CLI applications through combined access to t
 
 **MCP vs. Non-MCP Applications.** Applications with MCP server implementations (e.g., Obsidian via `mcp-obsidian`, VSCode via Socket.IO extension) enable API-based interactions alongside GUI control, allowing agents to choose the most efficient modality. Non-MCP applications rely solely on computer-use tools. The framework includes an MCP proxy for simulating protocol-compliant interactions during development.
 
-**Onboarding New Applications.** Adding applications requires three steps: (1) ensuring the application is discoverable via PATH or symbolic links (with `--no-sandbox` flags for Electron apps running in Docker); (2) creating task definitions with `config.json` specifying prompts, key steps, and context data locations; and (3) implementing `handler.py` with validation logic that checks task outcomes against expected results.
+**Onboarding New Applications.** Adding applications requires three steps:
+1. Ensuring the application is discoverable via PATH or symbolic links (with `--no-sandbox` flags for Electron apps running in Docker) 
+2. Creating task definitions with `config.json` specifying prompts, key steps, and context data locations
+3. Implementing `handler.py` with validation logic that checks task outcomes against expected results.
 
 **For Depth Description**: Please look up the [onboarding application guide](./onboard-application.md)
