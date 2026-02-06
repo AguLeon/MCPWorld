@@ -1,8 +1,7 @@
-# MCPWorld: A Multi-Modal Test Platform for Computer-Using Agents (CUA)
-
+# OpenMCP: a fully open-source and self-hosted testbed for MCP-enabled CUA benchmarking
 ![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Docker](https://img.shields.io/badge/Docker-Supported-green.svg)
 
-MCPWorld is an open-source benchmarking framework designed for evaluating **Computer-Using Agents (CUAs)**. It supports agents that interact with software applications via **GUI**, **API (Model Context Protocol – MCP)**, or **Hybrid** methods.
+OpenMCP is an open-source benchmarking framework designed for evaluating MCP-enabled **Computer-Using Agents (CUAs)**. It supports agents that interact with software applications via **GUI**, **API (Model Context Protocol – MCP)**, or **Hybrid** methods.
 
 
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
