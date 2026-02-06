@@ -231,7 +231,7 @@ MCPWorld/
 │   └── apps_install_scripts/    # App installation scripts
 ├── scripts/                     # Batch execution & metrics collection
     ├── config.cfg               # Batch run configuration
-    ├── models.cfg               # Models to benchmark (NEW)
+    ├── models.cfg               # Models to benchmark
     ├── run_tasks_range.sh       # Generic task range runner
     ├── run_vscode_range.sh      # VSCode batch runner
     ├── run_obsidian_range.sh    # Obsidian batch runner
