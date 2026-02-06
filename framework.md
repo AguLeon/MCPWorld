@@ -1,6 +1,6 @@
 # Framework
 
-This document summarizes the evaluation framework used in this repository. The framework executes MCP-enabled computer-use agents in a controlled environment and produces deterministic task-level results, traces, and resource metrics. The architecture is: ![Architecture](./docs/architecture.png).
+This document summarizes the evaluation framework used in this repository. The framework executes MCP-enabled computer-use agents in a controlled environment and produces deterministic task-level results, traces, and resource metrics. The architecture is: ![Architecture](./docs/architecture.png)
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
