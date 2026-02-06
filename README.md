@@ -33,26 +33,22 @@ OpenMCP is an open-source benchmarking framework designed for evaluating MCP-ena
 
 ## Key Features
 
-* **Comprehensive Task Suite**
+* **Host your own model**
 
-  * \~30+ tasks across multiple applications (VSCode, Obsidian).
+* **Bring your own cloud**:
 
-* **GUI, API, and Hybrid Interaction**
+* **Demonstrated Demo Task Suite**: \~30+ tasks across applications (VSCode, Obsidian).
 
-  * Integrated MCP support enables robust mixed-mode control, letting agents fall back to GUI when APIs are unavailable.
+* **GUI, API, and Hybrid Interaction**: Integrated MCP support enables robust mixed-mode control, letting agents fall back to GUI when APIs are unavailable.
 
 * **Black and White-Box Evaluation**
 
   * Easily expandable evaluators for black-box testing
   * Built-in evaluators inspect internal app signals or outputs for precise, reproducible task verification.
 
-* **Cross-Platform via Docker**
+* **Cross-Platform via Docker**: Containerized environments ensure consistent setups on Linux, macOS, and Windows.
 
-  * Containerized environments ensure consistent setups on Linux, macOS, and Windows.
-
-* **Extensible Framework**
-
-  * Easily add new tasks, applications, or custom agents via clear folder structure and interfaces.
+* **Extensible Framework**: Easily add new tasks, applications, or custom agents via clear folder structure and interfaces.
 
 ---
 
