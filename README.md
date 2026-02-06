@@ -192,11 +192,9 @@ There are 2 main ways it can be done:
 
 ## Documentation
 
-* **Manual Environment Setup**: To see how the environment is set-up step by step, see 
-* **Tasks**: See `PC-Canary/tests/tasks/` for JSON/JS/Python configs.
-* **Agents**: Reference implementations in `computer-use-demo/`.
-* **Extension**: Add new apps/tasks/agents as described in docs (Update in progress).
-* **Evaluation**: Black-box and White-box evaluators guarantee objective metrics.
+* **Framework Overview**: Please refer to the [framework guide](./framework.md)
+* **Test Runner**: Please refer to the [test scripts details](./scripts/README.md)
+* **Onboaring New Applications and Test**: Please refer to the [onboading guide](./onboard-application.md)
 
 ---
 
