@@ -49,13 +49,13 @@ services:
       - OLLAMA_KEEP_ALIVE=24h
     networks:
       - testbed-docker
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
 
 
 networks:

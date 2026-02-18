@@ -57,7 +57,7 @@ EOF
     success "Configuration loaded: WIDTH=${WIDTH}, HEIGHT=${HEIGHT}"
 }
 
-# ─── Step 1: Start Docker Compose Containers ────────────────────────────────
+# Start Docker Compose Containers ────────────────────────────────
 start_containers() {
     info "Starting docker-compose containers..."
 
@@ -88,7 +88,25 @@ start_containers() {
     export OLLAMA_GPU_OVERHEAD
     export OLLAMA_LOAD_TIMEOUT
 
-    docker compose up -d --build
+    if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null; then
+        info "GPU detected."
+        if [[ "${FORCE_REBUILD}" == true ]]; then
+            info "Force rebuild requested. Building and starting containers..."
+            docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+        else
+            docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+        fi
+    else
+        info "No GPU detected."
+        if [[ "${FORCE_REBUILD}" == true ]]; then
+            info "Force rebuild requested. Building and starting containers..."
+            docker compose -f docker-compose.yml up -d --build
+        else
+            docker compose -f docker-compose.yml up -d
+        fi
+    fi
+
+    # docker compose up -d --build
 
     info "Waiting for containers to be ready..."
     sleep 5
@@ -237,17 +255,41 @@ run_benchmark() {
 }
 
 # Main ────────────────────────────────────────────────────────────────────
+FORCE_REBUILD=false
+
 usage() {
-    echo "Usage: $0 <infrastructure_tag>"
+    echo "Usage: $0 [--rebuild] <infrastructure_tag>"
     echo ""
     echo "  infrastructure_tag   Tag identifying the infrastructure being benchmarked"
+    echo "  --rebuild            Force rebuild of Docker images even if they exist"
     echo ""
     echo "Example:"
     echo "  $0 my_cloud_setup"
+    echo "  $0 --rebuild my_cloud_setup"
     exit 1
 }
 
 main() {
+    # Parse optional flags
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+        --rebuild)
+            FORCE_REBUILD=true
+            shift
+            ;;
+        -h | --help)
+            usage
+            ;;
+        -*)
+            error "Unknown option: $1"
+            usage
+            ;;
+        *)
+            break
+            ;;
+        esac
+    done
+
     if [[ $# -lt 1 ]]; then
         error "Missing required argument: infrastructure_tag"
         usage
@@ -275,7 +317,7 @@ main() {
     run_benchmark
     echo ""
 
+    success "All done!"
 }
-success "All done!"
 
 main "$@"
