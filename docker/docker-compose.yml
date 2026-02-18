@@ -26,7 +26,6 @@ services:
       - OPENAI_BASE_URL=http://host.docker.internal:11434
       - OPENAI_ENDPOINT=/v1/chat/completions
       - OPENAI_TIMEOUT=1000
-      - INSTALL_APPS=${INSTALL_APPS-}
       - WIDTH=1000
       - HEIGHT=1000
     extra_hosts:
