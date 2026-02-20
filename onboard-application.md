@@ -74,6 +74,8 @@ cd ~/MCPWorld
 ./scripts/entrypoint.sh <infrastructure_tag>
 ```
 
+> Note: You can input `n` for the prompts to install apps and run tests for the onboarding. For this guide, we only need the docker container up and running.
+
 > **Important:** Applications must be installed as the **root** user inside the container. The framework assumes that applications are installed by root, not the agent user. To enter the container as root:
 > ```bash
 > docker exec -it -u root <container-name> /bin/bash
