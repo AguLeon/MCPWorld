@@ -13,11 +13,10 @@ OpenMCP is an open-source benchmarking framework designed for evaluating MCP-ena
 - [Prerequisites](#prerequisites)
 - [Quickstart](#quickstart)
 - [0. Cloning the repo](#0-cloning-the-repo)
-- [1. Start the Docker Workspace](#1-start-the-docker-workspace)
+- [1. Check and update the test configuration](#1-check-and-update-the-test-configuration)
+- [2. Start the Workspace and run benchmark tests](#2-start-the-workspace-and-run-benchmark-tests)
   - [What starts automatically:](#what-starts-automatically)
-- [2. Install the apps to be tested(Inside `mcpworld` container)](#2-install-the-apps-to-be-testedinside-mcpworld-container)
-- [3. Test multiple Ollama automatically (In Host machine)](#3-test-multiple-ollama-automatically-in-host-machine)
-- [4. Monitor Headless Runs](#4-monitor-headless-runs)
+- [3. Monitor Headless Runs](#3-monitor-headless-runs)
 - [Running Tests](#running-tests)
 - [Documentation](#documentation)
 - [Project Structure](#project-structure)
@@ -80,9 +79,13 @@ We also want to clone downstream linked repositories to the open-source apps we 
 git submodule update --init --recursive
 ```
 
-## 1. Start the Docker Workspace
+## 1. Check and update the test configuration
+Check the configuration file in `./scripts/config.cfg` for all the experiments configuration, from docker container environment-variables to which models to use.
+Once you have the configuration set, you can move to the next step.
 
-Bring up the container stack using the entrypoint script. This boots the desktop environment, VNC/noVNC services, Ollama, and prepares the shared workspace volume.
+## 2. Start the Workspace and run benchmark tests
+
+Bring up the container stack using the `entrypoint,sh` script. This boots the desktop environment, VNC/noVNC services, Ollama, and prepares the shared workspace volume.
 
 ```bash
 cd ~/MCPWorld
@@ -95,7 +98,7 @@ cd ~/MCPWorld
 The entrypoint script will:
 - Start the Docker containers (with GPU support if available)
 - Prompt you to install applications
-- Optionally run the benchmark suite
+- Prompts the user to run the benchmark suite
 
 **Options:**
 - `--rebuild`: Force rebuild of Docker images even if they exist
@@ -106,7 +109,7 @@ The entrypoint script will:
 - SUDO password for `mcpworld` environment : `123`
 
 ### What starts automatically:
-The entrypoint script launches 2 containers; `mcpworld` and `ollama`:
+The entrypoint script always launches 2 containers; `mcpworld` and `ollama`:
 - In `mcpworld` container, following are run automatically:
     - TurboVNC (display `:4`),
     - The noVNC web proxy (port `6080`),
@@ -121,43 +124,7 @@ docker exec -it <container-name> /bin/bash
 ```
 This starts a container's bash session.
 
-## 2. Install the apps to be tested(Inside `mcpworld` container)
-
-> **Important:** Applications must be installed as the **root** user inside the container. The framework assumes that applications are installed by root, not the agent user.
-
-To install applications manually, enter the container as root:
-```bash
-docker exec -it -u root <container-name> /bin/bash
-```
-
-Once inside the container as root, run the installation scripts:
-- We have installation scripts for apps inside of `./docker/apps_install_scripts/*`
-    - Current list: vscode, obsidian
-    - Run the script to install the applications: `/workspace/MCPWorld/docker/apps_install_scripts/obsidian.sh`
-    - The script will install the app and create a symbolic link for easy app startup
-
-> **Note:** The app installation scripts do not use `sudo` as they are designed to be run as root. Running them as a non-root user will fail.
-
-Alternatively, the `./scripts/entrypoint.sh` script will prompt you to install applications automatically during setup.
-
-## 3. Test multiple Ollama automatically (In Host machine)
-- The script to run the test is in `./scripts/run_multi_model_benchmark.sh <app-name> <infrastructure>`
-    - E.g. of infrastructure: H100x1, RasberryPi5, CPU32GB, H100x4, etc.
-- You can modify the models list all the models to test
-```bash
-MODELS=(
-    ... # Add all the models to test (Must be available in ollama registry!)
-)
-```
-- The model list is in `./scripts/models.cfg`
-- Common model targets: `qwen3-vl:8b-instruct`, `qwen3:32b-instruct`, `ministral-3:14b`.
-- Modify the configuration of the tests from: `./scripts/config.cfg`. Some the parameters are
-    - Temperature
-    - Timeout limit
-    - LLM API Endpoint
-    - Execution mode (api/gui/mixed)
-
-## 4. Monitor Headless Runs
+## 3. Monitor Headless Runs
 - The evaluator logs everything under the session folder you specify (default `logs_computer_use_eval/`). Tail the live log and inspect the saved metrics afterward:
 
 ```bash
