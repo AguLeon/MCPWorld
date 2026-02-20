@@ -82,17 +82,31 @@ git submodule update --init --recursive
 
 ## 1. Start the Docker Workspace
 
-Bring up the container stack defined in `docker-compose.yml`. This boots the desktop environment, VNC/noVNC services, Ollama, and prepares the shared workspace volume.
+Bring up the container stack using the entrypoint script. This boots the desktop environment, VNC/noVNC services, Ollama, and prepares the shared workspace volume.
 
 ```bash
-cd ~/MCPWorld/docker
-docker compose up -d
+cd ~/MCPWorld
+./scripts/entrypoint.sh <infrastructure_tag>
+
+# Example:
+./scripts/entrypoint.sh H100x1
 ```
+
+The entrypoint script will:
+- Start the Docker containers (with GPU support if available)
+- Prompt you to install applications
+- Optionally run the benchmark suite
+
+**Options:**
+- `--rebuild`: Force rebuild of Docker images even if they exist
+  ```bash
+  ./scripts/entrypoint.sh --rebuild H100x1
+  ```
 
 - SUDO password for `mcpworld` environment : `123`
 
 ### What starts automatically:
-`docker compose up` launches 2 containers; `mcpworld` and `ollama`:
+The entrypoint script launches 2 containers; `mcpworld` and `ollama`:
 - In `mcpworld` container, following are run automatically:
     - TurboVNC (display `:4`),
     - The noVNC web proxy (port `6080`),
@@ -108,10 +122,23 @@ docker exec -it <container-name> /bin/bash
 This starts a container's bash session.
 
 ## 2. Install the apps to be tested(Inside `mcpworld` container)
-- We have installation scripts for apps inside of ./docker/apps_install_scripts/*
+
+> **Important:** Applications must be installed as the **root** user inside the container. The framework assumes that applications are installed by root, not the agent user.
+
+To install applications manually, enter the container as root:
+```bash
+docker exec -it -u root <container-name> /bin/bash
+```
+
+Once inside the container as root, run the installation scripts:
+- We have installation scripts for apps inside of `./docker/apps_install_scripts/*`
     - Current list: vscode, obsidian
-    - Run the script to install the applications. `./docker/apps_install_scripts/obsidian.sh`
+    - Run the script to install the applications: `/workspace/MCPWorld/docker/apps_install_scripts/obsidian.sh`
     - The script will install the app and create a symbolic link for easy app startup
+
+> **Note:** The app installation scripts do not use `sudo` as they are designed to be run as root. Running them as a non-root user will fail.
+
+Alternatively, the `./scripts/entrypoint.sh` script will prompt you to install applications automatically during setup.
 
 ## 3. Test multiple Ollama automatically (In Host machine)
 - The script to run the test is in `./scripts/run_multi_model_benchmark.sh <app-name> <infrastructure>`
@@ -223,6 +250,7 @@ MCPWorld/
 │   ├── start_service.sh
 │   └── apps_install_scripts/    # App installation scripts
 ├── scripts/                     # Batch execution & metrics collection
+    ├── entrypoint.sh            # Main entry point for OpenMCP setup
     ├── config.cfg               # Batch run configuration
     ├── models.cfg               # Models to benchmark
     ├── run_tasks_range.sh       # Generic task range runner

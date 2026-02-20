@@ -68,25 +68,38 @@ tests/tasks/{app_name}/{task_id}_{task_name}/
 ### 1.1 Container Environment
 OpenMCP runs on Ubuntu 22.04 inside Docker containers. Applications must be installable and runnable within this environment.
 
+To start the environment, run the entrypoint script from the host machine:
+```bash
+cd ~/MCPWorld
+./scripts/entrypoint.sh <infrastructure_tag>
+```
+
+> **Important:** Applications must be installed as the **root** user inside the container. The framework assumes that applications are installed by root, not the agent user. To enter the container as root:
+> ```bash
+> docker exec -it -u root <container-name> /bin/bash
+> ```
+
 ### 1.2 Installation Methods
-Choose the appropriate installation method for your application:
+Choose the appropriate installation method for your application.
+
+> **Note:** All installation commands below assume you are running as **root** inside the container. Do **not** use `sudo` in your installation scripts—they are designed to be executed by root directly.
 
 #### Method A: APT Package Manager
 
 ```bash
-# Install from Ubuntu repositories
-sudo apt-get update
-sudo apt-get install -y <package-name>
+# Install from Ubuntu repositories (no sudo needed - running as root)
+apt-get update
+apt-get install -y <package-name>
 
 # Example: Installing GIMP
-sudo apt-get install -y gimp
+apt-get install -y gimp
 ```
 
 #### Method B: Flatpak
 ```bash
 
-# Install Flatpak if not present
-sudo apt-get install -y flatpak
+# Install Flatpak if not present (no sudo needed - running as root)
+apt-get install -y flatpak
 
 # Add Flathub repository
 flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
@@ -109,8 +122,8 @@ cd <app-name>
 cd PC-Canary/apps
 git submodule add https://github.com/<org>/<app-name>.git
 
-# Install build dependencies
-sudo apt-get install -y <build-deps>
+# Install build dependencies (no sudo needed - running as root)
+apt-get install -y <build-deps>
 
 # Build the application (varies by project)
 # Example for Node.js/Electron apps:
@@ -144,6 +157,7 @@ After installation, ensure the agent/user can find the application using `which 
 
 ```bash
 #!/bin/bash
+# Installation script - designed to be run as root (no sudo)
 set -e
 
 # Download and install NoteTaker
@@ -462,7 +476,10 @@ If your application has an MCP server, configure it in the task:
 ## Part 3: Testing Your Integration
 ### 3.1 Manual Testing
 ```bash
-# Enter the container
+# Enter the container as root (required for installing applications)
+docker exec -it -u root mcpworld /bin/bash
+
+# Or enter as the agent user (for testing application usage)
 docker exec -it mcpworld /bin/bash
 
 # Set display
@@ -506,6 +523,7 @@ cat logs_computer_use_eval/<timestamp>/result_myapp_task01_*.json | jq .
 ### Application Installation
 - [ ] Application runs on Ubuntu 22.04
 - [ ] Installation script created in `docker/apps_install_scripts/`
+- [ ] Installation script does NOT use `sudo` (runs as root)
 - [ ] Wrapper script with `--no-sandbox` if needed
 - [ ] Symbolic link or PATH entry created
 - [ ] `which app_name` returns correct path
@@ -536,8 +554,14 @@ cat logs_computer_use_eval/<timestamp>/result_myapp_task01_*.json | jq .
 This is the process to onboarding a hypothetical "NoteTaker" application:
 
 ### 1. Installation Script
+
+> **Note:** Installation scripts are designed to be run as **root** inside the container. Do not use `sudo` in your scripts.
+
 ```bash
 #!/bin/bash
+# Installation script - run as root inside the container
+# Usage: docker exec -it -u root <container-name> /bin/bash
+#        then run this script
 set -e
 
 # Download and install NoteTaker
@@ -667,7 +691,8 @@ def message_handler(message: Dict[str, Any], logger, task_parameter: Dict[str, A
 ---
 
 ## Key things to consider when on-boarding new applications
-1. Consistent Installation: Ensure applications are discoverable via which
-2. Docker Compatibility: Use --no-sandbox for Electron apps
-3. Context Data: Provide realistic, restorable application states
-4. Modular Evaluation: Separate configuration, hooking, and evaluation logic
+1. **Consistent Installation**: Ensure applications are discoverable via `which`
+2. **Root Installation**: All installations must be done as root (no `sudo` in scripts)
+3. **Docker Compatibility**: Use `--no-sandbox` for Electron apps
+4. **Context Data**: Provide realistic, restorable application states
+5. **Modular Evaluation**: Separate configuration, hooking, and evaluation logic

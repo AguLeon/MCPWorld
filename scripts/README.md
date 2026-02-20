@@ -4,6 +4,7 @@ The scripts/ folder contains utilities for batch task execution and metrics coll
 
 | File                                   | Description                                      |
 |----------------------------------------|--------------------------------------------------|
+| entrypoint.sh                          | Main entry point for OpenMCP setup & launch      |
 | config.cfg                             | Shared configuration for batch runs              |
 | models.cfg                             | List of models to benchmark                 |
 | run_tasks_range.sh                     | Generic script to run a range of tasks           |
@@ -18,6 +19,44 @@ The scripts/ folder contains utilities for batch task execution and metrics coll
 
 
 ## Sample Scripts to run
+
+### Starting the Environment (entrypoint.sh)
+
+The main entry point for setting up and launching OpenMCP:
+
+```bash
+# Usage: ./scripts/entrypoint.sh [--rebuild] <infrastructure_tag>
+
+# Start the environment with infrastructure tag
+./scripts/entrypoint.sh H100x1
+
+# Force rebuild Docker images before starting
+./scripts/entrypoint.sh --rebuild H100x1
+```
+
+The entrypoint script will:
+1. Start Docker containers (automatically detects GPU availability)
+2. Prompt you to install applications into the container
+3. Optionally run the benchmark suite
+
+### Installing Applications in the Container
+
+> **Important:** Applications must be installed as the **root** user inside the container. The framework assumes that applications are installed by root, not the agent user.
+
+To manually install applications, enter the container as root:
+
+```bash
+# Enter the container as root
+docker exec -it -u root <container-name> /bin/bash
+
+# Once inside, run the installation scripts (no sudo needed - you're already root)
+/workspace/MCPWorld/docker/apps_install_scripts/vscode.sh
+/workspace/MCPWorld/docker/apps_install_scripts/obsidian.sh
+```
+
+> **Note:** The app installation scripts do not use `sudo` as they are designed to be run as root. Running them as a non-root user will fail.
+
+Alternatively, the `entrypoint.sh` script will prompt you to install applications automatically during setup.
 
 ### Multi-model benchmarking (in host machine)
 Automatically benchmark multiple models across VSCode and/or Obsidian task suites:
