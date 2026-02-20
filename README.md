@@ -21,7 +21,13 @@ OpenMCP is an open-source benchmarking framework designed for evaluating MCP-ena
 - [Documentation](#documentation)
 - [Project Structure](#project-structure)
 - [Quick References](#quick-references)
-  - [Environment Variables](#environment-variables)
+  - [Configuration Reference](#configuration-reference)
+    - [Docker & Display](#docker--display)
+    - [LLM Provider](#llm-provider)
+    - [OpenAI-Compatible API](#openai-compatible-api)
+    - [Execution Settings](#execution-settings)
+    - [LLM Runtime Tuning](#llm-runtime-tuning)
+    - [Ollama Server](#ollama-server)
   - [Task Counts](#task-counts)
   - [Port Mapping](#port-mapping)
 - [License](#license)
@@ -83,7 +89,7 @@ git submodule update --init --recursive
 ```
 
 ## 1. Check and update the test configuration
-Check the configuration file in `./scripts/config.cfg` for all the experiments configuration, from docker container environment-variables to which models to use.
+Check the configuration file in `./scripts/config.cfg` for all the experiments configuration. See the [Configuration Reference](#configuration-reference) for all available options.
 Once you have the configuration set, you can move to the next step.
 
 ## 2. Start the Workspace and run benchmark tests
@@ -237,19 +243,70 @@ MCPWorld/
 ---
 
 ## Quick References
-### Environment Variables
 
-| Variable            | Description                     | Default                              |
-|---------------------|---------------------------------|--------------------------------------|
-| ANTHROPIC_API_KEY   | Anthropic API key               | dummy_api_key                        |
-| OPENAI_BASE_URL     | OpenAI-compatible endpoint      | http://host.docker.internal:11434    |
-| OPENAI_ENDPOINT     | API endpoint path               | /v1/chat/completions                 |
-| OPENAI_TIMEOUT      | Request timeout                 | 1000                                 |
-| WIDTH               | Screen width                    | 1000                                 |
-| HEIGHT              | Screen height                   | 1000                                 |
-| OLLAMA_KEEP_ALIVE   | Model keep-alive duration       | 24h                                  |
-| LLM_TEMPERATURE     | Model temperature               | 0.7                                  |
+### Configuration Reference
 
+All settings below are defined in `./scripts/config.cfg`.
+
+#### Docker & Display
+
+| Variable         | Description                        | Default      |
+|------------------|------------------------------------|--------------|
+| `CONTAINER_NAME` | Name of the main Docker container  | `ollama`   |
+| `HEIGHT`         | Screen/display height (pixels)     | `1000`       |
+| `WIDTH`          | Screen/display width (pixels)      | `1000`       |
+
+#### LLM Provider
+
+| Variable            | Description                                        | Default                           |
+|---------------------|----------------------------------------------------|-----------------------------------|
+| `PROVIDER`          | LLM backend to use (`openai` or `anthropic`)       | `openai`                          |
+| `MODELS`            | List of models to cycle through in multi-model runs | *(see config.cfg)*               |
+| `ANTHROPIC_API_KEY` | Anthropic API key (required when `PROVIDER=anthropic`) | `dummy_api_key`               |
+
+#### OpenAI-Compatible API
+
+| Variable           | Description                                       | Default                              |
+|--------------------|---------------------------------------------------|--------------------------------------|
+| `OPENAI_BASE_URL`  | Base URL of the OpenAI-compatible API endpoint    | `http://host.docker.internal:11434`  |
+| `OPENAI_ENDPOINT`  | API path for chat completions                     | `/v1/chat/completions`               |
+
+#### Execution Settings
+
+| Variable        | Description                                               | Default  |
+|-----------------|-----------------------------------------------------------|----------|
+| `EXEC_MODE`     | Interaction mode: `mixed`, `gui`, or `api`                | `mixed`  |
+| `TASK_TIMEOUT`  | Per-task execution timeout (seconds)                      | `600`    |
+| `TOTAL_TIMEOUT` | Total evaluator runtime limit (seconds)                   | `2000`   |
+| `MAX_LLM_CALLS` | Max LLM calls per task (leave blank for unlimited)        | `30`     |
+
+#### LLM Runtime Tuning
+
+| Variable          | Description                                                    | Default |
+|-------------------|----------------------------------------------------------------|---------|
+| `LLM_TEMPERATURE` | Sampling temperature — higher = more creative, lower = more deterministic | `0.7`   |
+
+#### Ollama Server
+
+| Variable                  | Description                                          | Default                        |
+|---------------------------|------------------------------------------------------|--------------------------------|
+| `OLLAMA_DEBUG`            | Enable debug logging (`1` = on, `0` = off)           | `0`                            |
+| `OLLAMA_HOST`             | Ollama server bind address                           | `127.0.0.1:11434`              |
+| `OLLAMA_CONTEXT_LENGTH`   | Default model context window size (tokens)           | `4096`                         |
+| `OLLAMA_KEEP_ALIVE`       | How long loaded models stay in memory                | `24h`                          |
+| `OLLAMA_MAX_QUEUE`        | Maximum number of queued inference requests          | `512`                          |
+| `OLLAMA_MAX_LOADED_MODELS`| Maximum number of models loaded per GPU              | `1`                            |
+| `OLLAMA_MODELS`           | Path to the Ollama models directory                  | `/var/lib/ollama/models`       |
+| `OLLAMA_NUM_PARALLEL`     | Max parallel inference requests                      | `1`                            |
+| `OLLAMA_NOPRUNE`          | Disable model blob pruning on startup (`1` = disable)| `0`                            |
+| `OLLAMA_ORIGINS`          | Allowed CORS origins                                 | `*`                            |
+| `OLLAMA_SCHED_SPREAD`     | Spread model load across all available GPUs          | `0`                            |
+| `OLLAMA_FLASH_ATTENTION`  | Enable Flash Attention for faster inference          | `1`                            |
+| `OLLAMA_KV_CACHE_TYPE`    | KV cache quantization type                           | `f16`                          |
+| `OLLAMA_GPU_OVERHEAD`     | Reserved VRAM per GPU (bytes)                        | `0`                            |
+| `OLLAMA_LOAD_TIMEOUT`     | Timeout for loading a model into memory              | `5m`                           |
+
+---
 
 ### Task Counts
 | Application | Task Count      |
