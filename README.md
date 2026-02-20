@@ -52,7 +52,7 @@ OpenMCP is an open-source benchmarking framework designed for evaluating MCP-ena
 ---
 
 ## Overview
-![Brief overview of this project](docs/architecture.png)
+![Brief overview of this project](docs/architecture.svg)
 
 ---
 
