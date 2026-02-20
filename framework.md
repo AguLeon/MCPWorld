@@ -54,7 +54,7 @@ After execution completes or times out, the evaluator validates task success and
 ### Application and model support
 The framework supports GUI-only applications and applications with MCP interfaces. When an MCP server is available, agents can use API calls for stateful operations and reserve GUI interaction for actions that lack tool support.
 
-Model backends are configured through `models.cfg`, which enables controlled comparisons across model families and serving stacks. Screen resolution is treated as an experimental parameter because it can affect coordinate prediction accuracy in GUI actions, especially for vision-language models.
+Model backends are configured through `scripts/config.cfg`, which enables controlled comparisons across model families and serving stacks. Screen resolution is treated as an experimental parameter because it can affect coordinate prediction accuracy in GUI actions, especially for vision-language models.
 
 ## Overview of the system
 ![Overview](docs/mcpworld_system.png)

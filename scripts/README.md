@@ -6,7 +6,6 @@ The scripts/ folder contains utilities for batch task execution and metrics coll
 |----------------------------------------|--------------------------------------------------|
 | entrypoint.sh                          | Main entry point for OpenMCP setup & launch      |
 | config.cfg                             | Shared configuration for batch runs              |
-| models.cfg                             | List of models to benchmark                 |
 | run_tasks_range.sh                     | Generic script to run a range of tasks           |
 | run_vscode_range.sh                   | Run a range of VSCode tasks                      |
 | run_obsidian_range.sh                 | Run a range of Obsidian tasks                    |
