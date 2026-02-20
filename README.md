@@ -32,22 +32,25 @@ OpenMCP is an open-source benchmarking framework designed for evaluating MCP-ena
 
 ## Key Features
 
-* **Host your own model**
+* **Host Your Own Models**: Run any Ollama-compatible model locally. Benchmark open-source LLMs with full control over model selection and configuration.
 
-* **Bring your own cloud**:
+* **In-depth Metrics Collection**: Collect detailed agent and system metrics such as tool calls, confidence scores, loop detection, GPU/CPU usage, memory, and energy consumption for deeper benchmarking and analysis.
 
-* **Demonstrated Demo Task Suite**: \~30+ tasks across applications (VSCode, Obsidian).
+* **Black-Box and White-Box Evaluation**:
+  * Black-box evaluators inspect filesystem outputs for success/failure
+  * White-box evaluators hook into application internals via WebSocket/IPC for precise, reproducible verification
 
-* **GUI, API, and Hybrid Interaction**: Integrated MCP support enables robust mixed-mode control, letting agents fall back to GUI when APIs are unavailable.
+* **GUI, API, and Hybrid Interaction**: Integrated MCP (Model Context Protocol) support enables mixed-mode control, letting agents seamlessly switch between API calls and GUI interactions as needed.
 
-* **Black and White-Box Evaluation**
+* **Comprehensive Task Suite**: 30+ tasks across open source as well as proprietary applications (VSCode, Obsidian).
 
-  * Easily expandable evaluators for black-box testing
-  * Built-in evaluators inspect internal app signals or outputs for precise, reproducible task verification.
+* **Easy Setup & Multi-Model Testing**: Get started quickly with a single script that handles Docker setup, application installation, and benchmark execution. Easily configure and run tests across multiple models and applications.
 
-* **Cross-Platform via Docker**: Containerized environments ensure consistent setups on Linux, macOS, and Windows.
+* **Interactive Debugging via Streamlit & noVNC**: Watch agents in action through the noVNC desktop view while interacting via the Streamlit chat interface. Perfect for human-in-the-loop evaluation, debugging, and demonstrations.
 
-* **Extensible Framework**: Easily add new tasks, applications, or custom agents via clear folder structure and interfaces.
+* **Bring Your Own Cloud**: Deploy on any cloud infrastructure.
+
+* **Extensible Framework**: Add new tasks, applications, or agents through a clear folder structure and well-defined interfaces. See the [onboarding guide](./onboard-application.md) to get started.
 
 ---
 
