@@ -16,9 +16,12 @@ set -euo pipefail
 # The absolute script path
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
+# Source models to benchmark list
+source "$SCRIPT_DIR/config.cfg"
+
 # Configuration (must be before cleanup function)
-OLLAMA_CONTAINER="ollama"
-MCPWORLD_CONTAINER="mcpworld"
+OLLAMA_CONTAINER="${OLLAMA_CONTAINER:-ollama}"
+MCPWORLD_CONTAINER="${CONTAINER_NAME:-mcpworld}"
 
 # Cleanup function to kill all running processes in container and on host
 cleanup_on_exit() {
@@ -72,9 +75,6 @@ VSCODE_START=1
 VSCODE_END=25
 OBSIDIAN_START=1
 OBSIDIAN_END=12
-
-# Source models to benchmark list
-source "$SCRIPT_DIR/models.cfg"
 
 # You can also read from a file:
 # mapfile -t MODELS < models.txt

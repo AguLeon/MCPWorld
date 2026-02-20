@@ -17,6 +17,10 @@ echo "Starting container services..."
 /opt/TurboVNC/bin/vncserver -xstartup ~/.vnc/xstartup -geometry ${WIDTH}x${HEIGHT} :4
 echo "TurboVNC started!"
 
+# Set display for all future processes
+export DISPLAY=:4
+export XAUTHORITY=/home/agent/.Xauthority
+
 # Run the noVNC server (for web inteface)
 /opt/noVNC/utils/novnc_proxy \
     --vnc localhost:5904 \
@@ -46,29 +50,6 @@ echo "Streamlit Enable in port $STREAMLIT_SERVER_PORT!"
 # STREAMLIT_SERVER_HEADLESS=true STREAMLIT_SERVER_PORT=8501 python -m streamlit run computer_use_demo/streamlit.py >/tmp/streamlit.log 2>&1 &
 
 cd /workspace
-
-INSTALL_APPS_CSV="${INSTALL_APPS:-}"
-mkdir -p /workspace/bin
-export PATH="/workspace/bin:$PATH"
-should_install() {
-    local app="$1"
-    [[ -z "$INSTALL_APPS_CSV" ]] && return 1
-    IFS=',' read -ra items <<<"$INSTALL_APPS_CSV"
-    for item in "${items[@]}"; do
-        if [[ "${item,,}" == "${app,,}" ]]; then
-            return 0
-        fi
-    done
-    return 1
-}
-
-if should_install "freetube"; then
-    bash /workspace/docker/apps_install_scripts/freetube.sh >/tmp/freetube_install.log 2>&1 &
-fi
-if should_install "vscode"; then
-    bash /workspace/docker/apps_install_scripts/vscode.sh >/tmp/vscode_install.log 2>&1 &
-fi
-
 # Run the MCP proxy (provides SSE bridge for MCP servers)
 if [[ "${ENABLE_MCP_PROXY:-1}" != "0" ]]; then
     if [[ -x "$(command -v mcp-proxy)" ]]; then
