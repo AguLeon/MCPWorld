@@ -16,8 +16,8 @@ cd ~
 
 # Create wrapper script with --no-sandbox flag
 # Add symbolic link (So that it becomes visible for the agent)
-echo '#!/bin/bash' | sudo tee /usr/local/bin/obsidian >/dev/null
-echo "~/squashfs-root/obsidian --no-sandbox \"\$@\"" | sudo tee -a /usr/local/bin/obsidian >/dev/null
+echo '#!/bin/bash' | tee /usr/local/bin/obsidian >/dev/null
+echo "~/squashfs-root/obsidian --no-sandbox \"\$@\"" | tee -a /usr/local/bin/obsidian >/dev/null
 chmod +x /usr/local/bin/obsidian
 
 # Create an alias with no-sandbox for easy access
