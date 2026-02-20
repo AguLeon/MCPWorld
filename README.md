@@ -252,7 +252,7 @@ All settings below are defined in `./scripts/config.cfg`.
 
 | Variable         | Description                        | Default      |
 |------------------|------------------------------------|--------------|
-| `CONTAINER_NAME` | Name of the main Docker container  | `ollama`   |
+| `CONTAINER_NAME` | Name of the main Docker container  | `openmcp`   |
 | `HEIGHT`         | Screen/display height (pixels)     | `1000`       |
 | `WIDTH`          | Screen/display width (pixels)      | `1000`       |
 
