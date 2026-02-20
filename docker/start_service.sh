@@ -17,6 +17,10 @@ echo "Starting container services..."
 /opt/TurboVNC/bin/vncserver -xstartup ~/.vnc/xstartup -geometry ${WIDTH}x${HEIGHT} :4
 echo "TurboVNC started!"
 
+# Set display for all future processes
+export DISPLAY=:4
+export XAUTHORITY=/home/agent/.Xauthority
+
 # Run the noVNC server (for web inteface)
 /opt/noVNC/utils/novnc_proxy \
     --vnc localhost:5904 \
