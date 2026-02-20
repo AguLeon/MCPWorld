@@ -332,13 +332,13 @@ def main():
         epilog="""
 Examples:
   # Process current directory
-  python json_to_csv_converter.py
+  python json_to_csv.py
 
   # Process specific directory
-  python json_to_csv_converter.py -i /path/to/results -o results.csv
+  python json_to_csv.py -i /path/to/results -o results.csv
 
   # Quiet mode
-  python json_to_csv_converter.py -i /path/to/results -q
+  python json_to_csv.py -i /path/to/results -q
         """,
     )
 
