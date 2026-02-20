@@ -68,7 +68,7 @@ OpenMCP is an open-source benchmarking framework designed for evaluating MCP-ena
 ---
 ## Quickstart
 
-Kick off OpenMCP environment with the essentials below/ Each step explains what the command accomplishes so the system can be run with confidence. These can be done directly after cloning the repository and its sub-modules.
+Kick off OpenMCP environment with the essentials below. Each step explains what the command accomplishes so the system can be run with confidence. These can be done directly after cloning the repository and its sub-modules.
 
 ## 0. Cloning the repo
 ```bash
