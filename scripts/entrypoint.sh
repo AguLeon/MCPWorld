@@ -92,9 +92,9 @@ start_containers() {
         info "GPU detected."
         if [[ "${FORCE_REBUILD}" == true ]]; then
             info "Force rebuild requested. Building and starting containers..."
-            docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+            docker compose -f docker-compose.yml -f docker-compose-ollama-gpu.yml up -d --build
         else
-            docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+            docker compose -f docker-compose.yml -f docker-compose-ollama-gpu.yml up -d
         fi
     else
         info "No GPU detected."
@@ -203,7 +203,7 @@ install_apps() {
             # "
             # Copy the script into the container and execute it
             docker cp "${script}" "${CONTAINER_NAME}:/tmp/install_${app_name}.sh"
-            docker exec "${CONTAINER_NAME}" bash -c "
+            docker exec -u root "${CONTAINER_NAME}" bash -c "
                 chmod +x /tmp/install_${app_name}.sh && \
                 /tmp/install_${app_name}.sh && \
                 touch /opt/.installed_${app_name} && \
